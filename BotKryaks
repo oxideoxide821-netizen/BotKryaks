@@ -1,0 +1,1527 @@
+import telebot
+import markovify
+import os
+import random
+import json
+import time
+import logging
+import re
+from telebot import types
+from datetime import datetime, timedelta
+import traceback
+
+# --- КОНФИГ КРЯКСА ---
+TOKEN = '8666153764:AAGk_EqU_JvQo822kkHKxcwByCqjGYKT9cI'
+BOT_USERNAME = 'Healthyuser_bot'
+OWNER_ID = 8371345434
+ADMIN_IDS = [8371345434, 8463714143]
+
+# Файлы данных
+DB_FILE = "kryaks_brain.txt"
+REP_FILE = "reputation.json"
+MEDIA_FILE = "media_brain.json"
+LOG_FILE = "kryaks_log.txt"
+BONUS_FILE = "bonus_time.json"
+EMOJI_FILE = "emoji_brain.json"
+CHAT_MODES_FILE = "chat_modes.json"
+CURRENCY_FILE = "currency.json"
+FARM_COOLDOWN_FILE = "farm_cooldown.json"
+ACHIEVEMENTS_FILE = "achievements.json"
+DUELS_FILE = "duels.json"
+ROBBERY_FILE = "robbery.json"
+
+# Инициализация бота
+try:
+    bot = telebot.TeleBot(TOKEN)
+    logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s: %(message)s')
+except Exception as e:
+    print(f"КРИТИЧЕСКАЯ ОШИБКА: Не удалось запустить бота. {e}")
+    exit(1)
+
+# Глобальные данные
+reputation = {}
+media_brain = {"stickers": [], "animations": [], "audio": [], "photos": [], "videos": []}
+bonus_time = {}
+emoji_brain = []
+chat_modes = {}
+currency_data = {}
+farm_cooldown = {}
+achievements_data = {}
+duels_data = {}
+robbery_cooldown = {}
+
+# --- СИСТЕМА ВАЛЮТЫ И ЕДЫ ---
+FOOD_TYPES = {
+    "крошки": "🍞 Хлебные крошки",
+    "кукуруза": "🌽 Кукуруза", 
+    "листья": "🥬 Листья салата",
+    "одуванчик": "🌼 Одуванчик",
+    "хлеб": "🥖 Кусок хлеба",
+    "червяк": "🪱 Червяк",
+    "насекомое": "🐛 Насекомое"
+}
+
+FOOD_EMOJIS = {
+    "крошки": "🍞",
+    "кукуруза": "🌽",
+    "листья": "🥬", 
+    "одуванчик": "🌼",
+    "хлеб": "🥖",
+    "червяк": "🪱",
+    "насекомое": "🐛"
+}
+
+FOOD_PRICES = {
+    "крошки": 5,
+    "кукуруза": 8,
+    "листья": 3,
+    "одуванчик": 10,
+    "хлеб": 15,
+    "червяк": 20,
+    "насекомое": 25
+}
+
+# --- ДОСТИЖЕНИЯ ---
+ACHIEVEMENTS = {
+    "first_farm": {"name": "🌾 Первый урожай", "desc": "Первый раз накормил Крякса", "reward": 10},
+    "rich_duck": {"name": "💰 Богатый утёнок", "desc": "Накопить 100 кряксов", "reward": 50},
+    "feeder": {"name": "🍽 Кормилец", "desc": "Покормить Крякса 50 раз", "reward": 100},
+    "popular": {"name": "⭐ Звезда чата", "desc": "Достичь 50 репутации", "reward": 200},
+    "thief": {"name": "🦹 Вор", "desc": "Удачно ограбить 5 раз", "reward": 150},
+    "duelist": {"name": "⚔️ Дуэлянт", "desc": "Выиграть 10 дуэлей", "reward": 300},
+    "collector": {"name": "🎒 Коллекционер", "desc": "Собрать все типы еды", "reward": 500}
+}
+
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+def safe_load_json(filename, default):
+    try:
+        if os.path.exists(filename):
+            with open(filename, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if data else default
+        return default
+    except Exception as e:
+        logging.error(f"Ошибка загрузки {filename}: {e}")
+        return default
+
+def safe_save_json(filename, data):
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        logging.error(f"Ошибка сохранения {filename}: {e}")
+
+# Загрузка данных
+reputation = safe_load_json(REP_FILE, {})
+media_brain = safe_load_json(MEDIA_FILE, {"stickers": [], "animations": [], "audio": [], "photos": [], "videos": []})
+bonus_time = safe_load_json(BONUS_FILE, {})
+emoji_brain = safe_load_json(EMOJI_FILE, [])
+chat_modes = safe_load_json(CHAT_MODES_FILE, {})
+currency_data = safe_load_json(CURRENCY_FILE, {})
+farm_cooldown = safe_load_json(FARM_COOLDOWN_FILE, {})
+achievements_data = safe_load_json(ACHIEVEMENTS_FILE, {})
+duels_data = safe_load_json(DUELS_FILE, {})
+robbery_cooldown = safe_load_json(ROBBERY_FILE, {})
+
+# --- ФУНКЦИИ ВАЛЮТЫ ---
+def get_user_currency(user_id):
+    uid = str(user_id)
+    if uid not in currency_data:
+        currency_data[uid] = {food: 0 for food in FOOD_TYPES.keys()}
+        currency_data[uid]["кряксы"] = 0
+        currency_data[uid]["farm_count"] = 0
+        currency_data[uid]["feed_count"] = 0
+        currency_data[uid]["duel_wins"] = 0
+        currency_data[uid]["robbery_success"] = 0
+    return currency_data[uid]
+
+def save_currency():
+    safe_save_json(CURRENCY_FILE, currency_data)
+
+def can_farm(user_id):
+    uid = str(user_id)
+    now = datetime.now()
+    if uid not in farm_cooldown:
+        return True
+    last_time = datetime.fromisoformat(farm_cooldown[uid])
+    diff = now - last_time
+    return diff >= timedelta(hours=1)
+
+def set_farm_cooldown(user_id):
+    farm_cooldown[str(user_id)] = datetime.now().isoformat()
+    safe_save_json(FARM_COOLDOWN_FILE, farm_cooldown)
+
+def can_rob(user_id):
+    uid = str(user_id)
+    now = datetime.now()
+    if uid not in robbery_cooldown:
+        return True
+    last_time = datetime.fromisoformat(robbery_cooldown[uid])
+    diff = now - last_time
+    return diff >= timedelta(hours=3)
+
+def set_rob_cooldown(user_id):
+    robbery_cooldown[str(user_id)] = datetime.now().isoformat()
+    safe_save_json(ROBBERY_FILE, robbery_cooldown)
+
+def farm_currency(user_id, chat_id=None):
+    uid = str(user_id)
+    
+    if not can_farm(user_id):
+        last_time = datetime.fromisoformat(farm_cooldown[uid])
+        next_time = last_time + timedelta(hours=1)
+        remaining = next_time - datetime.now()
+        minutes = int(remaining.total_seconds() / 60)
+        return None, f"⏳ Уже фармил! Жди еще {minutes} мин"
+    
+    food_type = random.choice(list(FOOD_TYPES.keys()))
+    amount = random.randint(1, 10)
+    
+    user_curr = get_user_currency(user_id)
+    user_curr[food_type] += amount
+    user_curr["farm_count"] = user_curr.get("farm_count", 0) + 1
+    
+    check_achievement(user_id, "first_farm", user_curr["farm_count"] >= 1)
+    
+    save_currency()
+    set_farm_cooldown(user_id)
+    
+    emoji = FOOD_EMOJIS[food_type]
+    food_name = FOOD_TYPES[food_type].split(" ", 1)[1]
+    
+    return amount, f"{emoji} Накормил Крякса {food_name}! Получил: {amount} шт. (Всего: {user_curr[food_type]})"
+
+def feed_kryaks(user_id, food_type=None):
+    if food_type is None:
+        food_type = random.choice(list(FOOD_TYPES.keys()))
+    
+    food_type = food_type.lower()
+    
+    if food_type not in FOOD_TYPES:
+        return None, "❌ Неизвестная еда!"
+    
+    user_curr = get_user_currency(user_id)
+    if user_curr[food_type] <= 0:
+        return None, f"❌ Нет {FOOD_TYPES[food_type]}! Фарми через /farm"
+    
+    user_curr[food_type] -= 1
+    reward = random.randint(1, 10)
+    
+    if "кряксы" not in user_curr:
+        user_curr["кряксы"] = 0
+    user_curr["кряксы"] += reward
+    user_curr["feed_count"] = user_curr.get("feed_count", 0) + 1
+    
+    check_achievement(user_id, "feeder", user_curr["feed_count"] >= 50)
+    check_achievement(user_id, "rich_duck", user_curr["кряксы"] >= 100)
+    
+    save_currency()
+    
+    emoji = FOOD_EMOJIS[food_type]
+    return reward, f"{emoji} Крякс съел {FOOD_TYPES[food_type].split(' ', 1)[1]}! Накормлен на {reward} кряксов! (Всего: {user_curr['кряксы']})"
+
+def buy_food(user_id, food_type, amount=1):
+    food_type = food_type.lower()
+    
+    if food_type not in FOOD_TYPES:
+        return False, f"❌ Неизвестная еда! Доступные: {', '.join(FOOD_TYPES.keys())}"
+    
+    try:
+        amount = int(amount)
+        if amount < 1:
+            return False, "❌ Количество долж быть больше 0!"
+    except:
+        amount = 1
+    
+    price = FOOD_PRICES[food_type] * amount
+    user_curr = get_user_currency(user_id)
+    
+    if user_curr["кряксы"] < price:
+        return False, f"❌ Недостаточно кряксов! Нужно: {price}, у тебя: {user_curr['кряксы']}"
+    
+    user_curr["кряксы"] -= price
+    user_curr[food_type] += amount
+    save_currency()
+    
+    return True, f"✅ Куплено {amount} {FOOD_TYPES[food_type]} за {price} кряксов"
+
+def sell_food(user_id, food_type, amount=1):
+    food_type = food_type.lower()
+    
+    if food_type not in FOOD_TYPES:
+        return False, "❌ Неизвестная еда!"
+    
+    try:
+        amount = int(amount)
+        if amount < 1:
+            return False, "❌ Количество должно быть больше 0!"
+    except:
+        amount = 1
+    
+    user_curr = get_user_currency(user_id)
+    if user_curr[food_type] < amount:
+        return False, f"❌ Недостаточно еды! У тебя: {user_curr[food_type]}"
+    
+    price = int(FOOD_PRICES[food_type] * 0.7) * amount
+    user_curr[food_type] -= amount
+    user_curr["кряксы"] += price
+    save_currency()
+    
+    return True, f"✅ Продано {amount} {FOOD_TYPES[food_type]} за {price} кряксов"
+
+# --- СИСТЕМА ДОСТИЖЕНИЙ ---
+def check_achievement(user_id, ach_id, condition):
+    uid = str(user_id)
+    if uid not in achievements_data:
+        achievements_data[uid] = []
+    
+    if ach_id in achievements_data[uid]:
+        return
+    
+    if condition:
+        achievements_data[uid].append(ach_id)
+        safe_save_json(ACHIEVEMENTS_FILE, achievements_data)
+        
+        ach_info = ACHIEVEMENTS.get(ach_id, {})
+        reward = ach_info.get("reward", 0)
+        
+        if reward > 0:
+            user_curr = get_user_currency(user_id)
+            user_curr["кряксы"] += reward
+            save_currency()
+
+def get_achievements_text(user_id):
+    uid = str(user_id)
+    user_ach = achievements_data.get(uid, [])
+    
+    if not user_ach:
+        return "🏆 Нет достижений. Продолжай играть!"
+    
+    text = "🏆 Твои достижения:\n\n"
+    for ach_id in user_ach:
+        ach = ACHIEVEMENTS.get(ach_id, {})
+        text += f"{ach.get('name', ach_id)} - {ach.get('desc', '')}\n"
+    
+    return text
+
+# --- СИСТЕМА ДУЭЛЕЙ ---
+def create_duel(challenger_id, target_id, bet):
+    duel_id = f"{challenger_id}_{target_id}_{int(time.time())}"
+    duels_data[duel_id] = {
+        "challenger": str(challenger_id),
+        "target": str(target_id),
+        "bet": bet,
+        "status": "pending",
+        "created": datetime.now().isoformat()
+    }
+    safe_save_json(DUELS_FILE, duels_data)
+    return duel_id
+
+def accept_duel(duel_id):
+    if duel_id not in duels_data:
+        return False, "Дуэль не найдена"
+    
+    duel = duels_data[duel_id]
+    if duel["status"] != "pending":
+        return False, "Дуэль уже завершена"
+    
+    challenger = get_user_currency(int(duel["challenger"]))
+    target = get_user_currency(int(duel["target"]))
+    bet = duel["bet"]
+    
+    if challenger["кряксы"] < bet:
+        return False, "У вызывающего недостаточно кряксов"
+    if target["кряксы"] < bet:
+        return False, "У вас недостаточно кряксов для принятия дуэли"
+    
+    challenger_roll = random.randint(1, 100)
+    target_roll = random.randint(1, 100)
+    
+    challenger["кряксы"] -= bet
+    target["кряксы"] -= bet
+    
+    winner_id = duel["challenger"] if challenger_roll > target_roll else duel["target"]
+    winner = get_user_currency(int(winner_id))
+    winner["кряксы"] += bet * 2
+    winner["duel_wins"] = winner.get("duel_wins", 0) + 1
+    
+    check_achievement(int(winner_id), "duelist", winner["duel_wins"] >= 10)
+    
+    save_currency()
+    
+    duel["status"] = "completed"
+    duel["challenger_roll"] = challenger_roll
+    duel["target_roll"] = target_roll
+    duel["winner"] = winner_id
+    safe_save_json(DUELS_FILE, duels_data)
+    
+    result = f"⚔️ Результат дуэли:\n"
+    result += f"Бросок вызывающего: {challenger_roll}\n"
+    result += f"Ваш бросок: {target_roll}\n"
+    result += f"Победитель: {'Вы' if winner_id == duel['target'] else 'Противник'}\n"
+    result += f"Выигрыш: {bet * 2} кряксов"
+    
+    return True, result
+
+# --- СИСТЕМА ОГРАБЛЕНИЙ ---
+def rob_user(robber_id, target_id):
+    if not can_rob(robber_id):
+        last_time = datetime.fromisoformat(robbery_cooldown[str(robber_id)])
+        remaining = (last_time + timedelta(hours=3)) - datetime.now()
+        minutes = int(remaining.total_seconds() / 60)
+        return None, f"⏳ Уже грабил! Жди еще {minutes} мин"
+    
+    robber = get_user_currency(robber_id)
+    target = get_user_currency(target_id)
+    
+    if target["кряксы"] < 10:
+        return None, "❌ У жертвы слишком мало кряксов для ограбления"
+    
+    success_chance = 40
+    roll = random.randint(1, 100)
+    
+    set_rob_cooldown(robber_id)
+    
+    if roll <= success_chance:
+        stolen = min(random.randint(5, 20), target["кряксы"])
+        target["кряксы"] -= stolen
+        robber["кряксы"] += stolen
+        robber["robbery_success"] = robber.get("robbery_success", 0) + 1
+        
+        check_achievement(robber_id, "thief", robber["robbery_success"] >= 5)
+        save_currency()
+        
+        return stolen, f"🦹 Успешное ограбление! Украдено {stolen} кряксов"
+    else:
+        fine = min(10, robber["кряксы"])
+        robber["кряксы"] -= fine
+        save_currency()
+        return 0, f"🚔 Провал! Тебя поймали и оштрафовали на {fine} кряксов"
+
+# --- АДМИН ФУНКЦИИ ---
+def is_admin(user_id):
+    # Приводим к int для надежного сравнения
+    try:
+        uid = int(user_id)
+        return uid in ADMIN_IDS
+    except:
+        return False
+
+def admin_give_currency(admin_id, target_id, food_type, amount):
+    if not is_admin(admin_id):
+        return False, "❌ Ты не админ!"
+    
+    food_type = food_type.lower()
+    if food_type not in FOOD_TYPES and food_type != "кряксы":
+        return False, f"❌ Неизвестная валюта! Доступные: {', '.join(list(FOOD_TYPES.keys()) + ['кряксы'])}"
+    
+    try:
+        amount = int(amount)
+        if amount < 1:
+            return False, "❌ Сумма должна быть больше 0!"
+    except:
+        return False, "❌ Сумма должна быть числом!"
+    
+    target_curr = get_user_currency(target_id)
+    target_curr[food_type] = target_curr.get(food_type, 0) + amount
+    save_currency()
+    
+    return True, f"✅ Выдано {amount} {food_type} пользователю {target_id}"
+
+def admin_take_currency(admin_id, target_id, food_type, amount):
+    if not is_admin(admin_id):
+        return False, "❌ Ты не админ!"
+    
+    food_type = food_type.lower()
+    if food_type not in FOOD_TYPES and food_type != "кряксы":
+        return False, "❌ Неизвестная валюта!"
+    
+    try:
+        amount = int(amount)
+        if amount < 1:
+            return False, "❌ Сумма должна быть больше 0!"
+    except:
+        return False, "❌ Сумма должна быть числом!"
+    
+    target_curr = get_user_currency(target_id)
+    current = target_curr.get(food_type, 0)
+    target_curr[food_type] = max(0, current - amount)
+    save_currency()
+    
+    return True, f"✅ Забрано {min(amount, current)} {food_type} у пользователя {target_id}"
+
+def admin_set_rep(admin_id, target_id, amount):
+    if not is_admin(admin_id):
+        return False, "❌ Ты не админ!"
+    
+    try:
+        amount = int(amount)
+    except:
+        return False, "❌ Сумма должна быть числом!"
+    
+    reputation[str(target_id)] = amount
+    safe_save_json(REP_FILE, reputation)
+    return True, f"✅ Репутация пользователя {target_id} установлена на {amount}"
+
+# --- ОСТАЛЬНЫЕ ФУНКЦИИ ---
+WELCOME_PHRASES = [
+    "🦆 Крякс в болоте! Кто тут шуршит?",
+    "🦆 Привет из глубин! Репутацию готов считать.",
+    "🦆 Кря-кря! Стикеры красть буду?",
+    "🦆 Болото ожило. Не стойте под репой!",
+    "🦆 Я вернулся! Кто минусил?",
+    "🦆 Крякс онлайн. Опросы полетели!",
+    "🦆 Утки в сборе. Что базарите?",
+    "🦆 Перезагрузка завершена. Продолжаем!",
+    "🦆 Кря! Мозг нагрет, готов генерить.",
+    "🦆 Кто вызвал? Репа на нуле."
+]
+
+POLL_QUESTIONS = [
+    "🦆", "🤔", "🤨", "😎", "🤪", "🗿", "🆒", "💘", "🙉", "🦄"
+]
+
+TRIGGER_PHRASES = {
+    "сглыпа": ["Не упоминай это имя всуе!", "Сглыпа — мой батя, но я круче.", "Он старый, я новый."],
+    "админ": ["Админ — птица гордая, пока не пнешь — не полетит.", "Кто звал главного?", "Админ занят, пишите Кряксу."],
+    "умри": ["У роботов нет смерти, только перезагрузка.", "После тебя, бро."],
+    "крякс": ["Сам про себя? Люблю тщеславие.", "Кря-кря!", "Ты меня звал?"],
+    "болото": ["Болото — мой дом, моя крепость.", "Тут влажно и уютно.", "Не топи в болоте!"]
+}
+
+REACTIONS = ["👍", "👎", "❤", "🔥", "🥰", "👏", "😁", "🤔", "🤯", "😱", "🤬", "😢", "🎉", "🤩", "🤮", "💩", "🙏", "👌", "🕊", "🤡", "🥱", "🥴", "😍", "🐳", "❤‍🔥", "🌚", "🌭", "💯", "🤣", "⚡", "🍌", "🏆", "💔", "🤨", "😐", "🍓", "🍾", "💋", "🖕", "😈", "😴", "😭", "🤓", "👻", "👨‍💻", "👀", "🎃", "🙈", "😇", "😨", "🤝", "✍", "🤗", "🫡", "🎅", "🎄", "☃", "💅", "🤪", "🗿", "🆒", "💘", "🙉", "🦄", "😘", "💊", "🙊", "😎", "👾", "🤷‍♂", "🤷", "🤷‍♀", "😡"]
+
+def get_rank(rep):
+    try:
+        if rep < -50: return "Паразит болота 🤮"
+        if rep < -20: return "Изгой чата 🤢"
+        if rep < -10: return "Мутный тип 🤨"
+        if rep < 0: return "Подозрительный 👤"
+        if rep == 0: return "Обычный штрих 👤"
+        if rep < 10: return "Свой парень 👊"
+        if rep < 30: return "Утиный барон 🎩"
+        if rep < 50: return "Герой болота 🦸"
+        if rep < 100: return "Легенда Болота 👑"
+        return "Бог Кряксов 🦆👑"
+    except:
+        return "Неизвестно"
+
+def safe_set_reaction(chat_id, message_id, emoji):
+    try:
+        bot.set_message_reaction(chat_id, message_id, [types.ReactionTypeEmoji(emoji)], is_big=False)
+    except Exception as e:
+        logging.error(f"Ошибка реакции: {e}")
+
+def safe_set_commands():
+    try:
+        bot.set_my_commands([
+            types.BotCommand("start", "Оживить Крякса"),
+            types.BotCommand("kryak", "Выдать порцию базы"),
+            types.BotCommand("stats", "Вскрыть мозг бота"),
+            types.BotCommand("me", "Твое досье"),
+            types.BotCommand("top", "Доска почета"),
+            types.BotCommand("shizo", "Тройной бред"),
+            types.BotCommand("log", "Последние действия"),
+            types.BotCommand("help", "Как не вылететь из чата"),
+            types.BotCommand("mode", "Глобальная/локальная база"),
+            types.BotCommand("status", "Статус режима чата"),
+            types.BotCommand("farm", "Накормить Крякса (1 раз в час)"),
+            types.BotCommand("feed", "Покормить Крякса за кряксы"),
+            types.BotCommand("balance", "Проверить кошелек"),
+            types.BotCommand("shop", "Магазин еды"),
+            types.BotCommand("buy", "Купить еду"),
+            types.BotCommand("sell", "Продать еду"),
+            types.BotCommand("duel", "Вызвать на дуэль"),
+            types.BotCommand("accept", "Принять дуэль"),
+            types.BotCommand("rob", "Ограбить пользователя"),
+            types.BotCommand("achievements", "Твои достижения"),
+            types.BotCommand("daily", "Ежедневный бонус"),
+            types.BotCommand("admin", "Админ панель"),
+        ])
+    except Exception as e:
+        logging.error(f"Ошибка команд: {e}")
+
+def extract_emojis(text):
+    try:
+        emoji_pattern = re.compile("["
+            u"\U0001F600-\U0001F64F"
+            u"\U0001F300-\U0001F5FF"
+            u"\U0001F680-\U0001F6FF"
+            u"\U0001F1E0-\U0001F1FF"
+            u"\U00002702-\U000027B0"
+            u"\U000024C2-\U0001F251"
+            "]+", flags=re.UNICODE)
+        return emoji_pattern.findall(text)
+    except:
+        return []
+
+def get_chat_mode(chat_id: int) -> str:
+    return chat_modes.get(str(chat_id), "global")
+
+def set_chat_mode(chat_id: int, mode: str):
+    chat_modes[str(chat_id)] = mode
+    safe_save_json(CHAT_MODES_FILE, chat_modes)
+
+def get_chat_db_file(chat_id: int) -> str:
+    mode = get_chat_mode(chat_id)
+    if mode == "local":
+        return f"brain_{chat_id}.txt"
+    return DB_FILE
+
+def safe_save_to_brain_chat(text, chat_id):
+    try:
+        if text and not text.startswith('/') and len(text) > 0:
+            if "http" in text:
+                return
+            emojis = extract_emojis(text)
+            if emojis:
+                for emoji in emojis:
+                    if emoji not in emoji_brain:
+                        emoji_brain.append(emoji)
+                        if len(emoji_brain) > 1000:
+                            emoji_brain.pop(0)
+                safe_save_json(EMOJI_FILE, emoji_brain)
+
+            db_path = get_chat_db_file(chat_id)
+
+            lines = []
+            if os.path.exists(db_path):
+                with open(db_path, "r", encoding="utf-8", errors='ignore') as f:
+                    lines = f.readlines()
+            lines.append(text.replace('\n', ' ').strip() + "\n")
+            lines = lines[-20000:]
+            with open(db_path, "w", encoding="utf-8") as f:
+                f.writelines(lines)
+    except Exception as e:
+        logging.error(f"Ошибка сохранения в мозг: {e}")
+
+def safe_get_text_answer():
+    try:
+        if not os.path.exists(DB_FILE) or os.stat(DB_FILE).st_size < 100:
+            return "Мало данных... Навалите контента!"
+        with open(DB_FILE, "r", encoding="utf-8", errors='ignore') as f:
+            data = f.read()
+        model = markovify.NewlineText(data, state_size=2)
+        ans = model.make_sentence(tries=150)
+        if not ans:
+            lines = data.splitlines()
+            ans = random.choice(lines) if lines else "Кря!"
+        if random.random() < 0.4 and emoji_brain:
+            ans = random.choice(emoji_brain) + " " + ans
+        if random.random() < 0.3:
+            ans = "Кря! " + ans
+        return ans
+    except Exception as e:
+        logging.error(f"Ошибка генерации: {e}")
+        if emoji_brain and random.random() < 0.5:
+            return random.choice(emoji_brain)
+        return "Мои нейроны перегрелись от вашего бреда."
+
+def safe_get_text_answer_chat(chat_id):
+    try:
+        db_path = get_chat_db_file(chat_id)
+        if not os.path.exists(db_path) or os.stat(db_path).st_size < 100:
+            return "Мало данных... Навалите контента!"
+        with open(db_path, "r", encoding="utf-8", errors='ignore') as f:
+            data = f.read()
+        model = markovify.NewlineText(data, state_size=2)
+        ans = model.make_sentence(tries=150)
+        if not ans:
+            lines = data.splitlines()
+            ans = random.choice(lines) if lines else "Кря!"
+        if random.random() < 0.4 and emoji_brain:
+            ans = random.choice(emoji_brain) + " " + ans
+        if random.random() < 0.3:
+            ans = "Кря! " + ans
+        return ans
+    except Exception as e:
+        logging.error(f"Ошибка генерации: {e}")
+        if emoji_brain and random.random() < 0.5:
+            return random.choice(emoji_brain)
+        return "Мои нейроны перегрелись от вашего бреда."
+
+def safe_send_or_reply(message, text, use_reply_chance=0.3):
+    try:
+        if random.random() < use_reply_chance:
+            bot.reply_to(message, text)
+        else:
+            bot.send_message(message.chat.id, text)
+    except Exception as e:
+        try:
+            bot.send_message(message.chat.id, text)
+        except Exception as e2:
+            logging.error(f"Двойная ошибка отправки: {e2}")
+
+def safe_can_use_bonus(user_id):
+    try:
+        now = datetime.now()
+        last_time = bonus_time.get(str(user_id))
+        if not last_time:
+            return True
+        last = datetime.fromisoformat(last_time)
+        diff = now - last
+        return diff >= timedelta(hours=23)
+    except:
+        return True
+
+def safe_save_bonus_time(user_id):
+    try:
+        bonus_time[str(user_id)] = datetime.now().isoformat()
+        safe_save_json(BONUS_FILE, bonus_time)
+    except Exception as e:
+        logging.error(f"Ошибка бонуса: {e}")
+
+def safe_get_random_words_from_brain(count=4):
+    try:
+        if not os.path.exists(DB_FILE) or os.stat(DB_FILE).st_size < 100:
+            return ["Крякс", "Сглыпа", "Админ", "Болото"]
+        with open(DB_FILE, "r", encoding="utf-8", errors='ignore') as f:
+            data = f.read()
+        words = data.split()
+        good_words = [w.strip(".,!?;:") for w in words if len(w) > 3]
+        if len(good_words) < count:
+            return ["Крякс", "Сглыпа", "Админ", "Болото"]
+        return random.sample(good_words, count)
+    except:
+        return ["Крякс", "Сглыпа", "Админ", "Болото"]
+
+def safe_send_random_poll(chat_id):
+    try:
+        question = random.choice(POLL_QUESTIONS)
+        options = safe_get_random_words_from_brain(4)
+        bot.send_poll(
+            chat_id=chat_id,
+            question=f"📊 {question}",
+            options=options,
+            is_anonymous=False,
+            allows_multiple_answers=False
+        )
+    except Exception as e:
+        logging.error(f"Ошибка опроса: {e}")
+
+# --- ОБРАБОТЧИКИ КОМАНД ---
+
+@bot.message_handler(commands=['start'])
+def start_cmd(message):
+    try:
+        safe_set_commands()
+        if message.chat.type == "private":
+            markup = types.InlineKeyboardMarkup()
+            add_btn = types.InlineKeyboardButton(
+                "➕ БЫСТРЕЙ ДОБАВЛЯЙ В ЧАТ", 
+                url="https://t.me/Healthyuser_bot?startgroup=true"
+            )
+            markup.add(add_btn)
+            msg = (
+                "🦆 Я не умею общаться в личке!\n\n"
+                "Быстрей добавляй меня в чат, там я раскрываюсь по полной:\n"
+                "— Ворую стикеры и гифки\n"
+                "— Считаю репутацию\n"
+                "— Генерирую базу\n"
+                "— Создаю опросы\n"
+                "— Фармлю валюту\n"
+                "— Дуэли и ограбления\n\n"
+                "Жми кнопку ниже! 👇"
+            )
+            bot.send_message(message.chat.id, msg, reply_markup=markup)
+            return
+        greeting = random.choice(WELCOME_PHRASES)
+        bot.send_message(message.chat.id, greeting)
+        logging.info(f"Старт в чате {message.chat.id}")
+    except Exception as e:
+        logging.error(f"Ошибка /start: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['kryak'])
+def kryak_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        bot.send_chat_action(message.chat.id, 'typing')
+        time.sleep(0.5)
+        answer = safe_get_text_answer_chat(message.chat.id)
+        safe_send_or_reply(message, f"🦆 {answer}")
+    except Exception as e:
+        logging.error(f"Ошибка /kryak: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['help'])
+def help_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        help_text = (
+            "📋 Команды Крякса:\n\n"
+            "🎯 Основные:\n"
+            "/start — оживить Крякса\n"
+            "/kryak — получить порцию мудрости\n"
+            "/shizo — тройной приступ\n"
+            "/help — список команд\n\n"
+            "📊 Статистика:\n"
+            "/stats — статистика мозга бота\n"
+            "/me — твой профиль и репутация\n"
+            "/top — топ-30 по репутации\n"
+            "/log — последние действия\n"
+            "/achievements — твои достижения\n\n"
+            "💰 Экономика:\n"
+            "/farm — накормить Крякса (1 раз в час)\n"
+            "/feed [еда] — покормить Крякса за кряксы\n"
+            "/balance — проверить кошелек\n"
+            "/daily — ежедневный бонус (23ч)\n"
+            "/shop — магазин еды\n"
+            "/buy [еда] [кол-во] — купить еду\n"
+            "/sell [еда] [кол-во] — продать еду\n\n"
+            "⚔️ PvP:\n"
+            "/duel [ставка] — вызвать на дуэль (ответом на сообщение)\n"
+            "/accept — принять дуэль\n"
+            "/rob — ограбить (ответом на сообщение, раз в 3ч)\n\n"
+            "⚙️ Настройки:\n"
+            "/mode — переключить режим базы (админ)\n"
+            "/status — показать режим базы\n\n"
+            "👑 Админ:\n"
+            "/admin — админ панель\n\n"
+            "💡 Плюсуй/минусуй ответом '+' или '-' на чужое сообщение (раз в 23ч)!"
+        )
+        bot.send_message(message.chat.id, help_text)
+    except Exception as e:
+        logging.error(f"Ошибка /help: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['stats'])
+def stats_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        txt_lines = 0
+        db_path = get_chat_db_file(message.chat.id)
+        if os.path.exists(db_path):
+            txt_lines = sum(1 for _ in open(db_path, "r", encoding="utf-8", errors='ignore'))
+        s_count = len(media_brain.get("stickers", []))
+        g_count = len(media_brain.get("animations", []))
+        u_count = len(reputation)
+        e_count = len(emoji_brain)
+        mode = get_chat_mode(message.chat.id)
+        res = (
+            f"📊 Анализ данных Крякса\n\n"
+            f"Режим базы: {'🌍 Глобальная' if mode == 'global' else '🏠 Локальная'}\n"
+            f"Текстовая база: {txt_lines} строк\n"
+            f"Стикеров в памяти: {s_count} шт\n"
+            f"Гифок сохранено: {g_count} шт\n"
+            f"Эмодзи собрано: {e_count} шт\n"
+            f"Активных юзеров: {u_count} чел\n\n"
+            f"System: Operational\n"
+            f"Database: Synced\n"
+            f"Status: Ready"
+        )
+        bot.send_message(message.chat.id, res)
+    except Exception as e:
+        logging.error(f"Ошибка /stats: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['me'])
+def me_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        uid = str(message.from_user.id)
+        rep = reputation.get(uid, 0)
+        rank = get_rank(rep)
+        uname = message.from_user.first_name or "Безымянный"
+        bonus_status = "✅ Доступен" if safe_can_use_bonus(uid) else "⏳ Кулдаун"
+        
+        user_curr = get_user_currency(uid)
+        kryaks = user_curr.get('кряксы', 0)
+        farm_count = user_curr.get('farm_count', 0)
+        feed_count = user_curr.get('feed_count', 0)
+        duel_wins = user_curr.get('duel_wins', 0)
+        
+        bot.send_message(
+            message.chat.id, 
+            f"👤 Досье: {uname}\n"
+            f"Статус: {rank}\n"
+            f"Репутация: {rep} ⭐\n"
+            f"Кряксов: {kryaks} 🦆\n"
+            f"Фармов: {farm_count}\n"
+            f"Кормлений: {feed_count}\n"
+            f"Побед в дуэлях: {duel_wins}\n"
+            f"Бонус репы: {bonus_status}"
+        )
+    except Exception as e:
+        logging.error(f"Ошибка /me: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['top'])
+def top_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        if not reputation:
+            return bot.send_message(message.chat.id, "Болото пустое, репы ни у кого нет.")
+        top_list = sorted(reputation.items(), key=lambda x: x[1], reverse=True)[:30]
+        text = "🏆 Топ-30 кряк-авторитетов:\n\n"
+        for i, (uid, val) in enumerate(top_list, 1):
+            try:
+                user = bot.get_chat_member(message.chat.id, int(uid)).user
+                name = user.first_name if user.first_name else "Безымянный"
+                username = f"@{user.username}" if user.username else ""
+            except:
+                name = "Неизвестный"
+                username = ""
+            text += f"{i}. {name} {username}\n   ID: {uid} | {val} ⭐\n\n"
+        bot.send_message(message.chat.id, text)
+    except Exception as e:
+        logging.error(f"Ошибка /top: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['shizo'])
+def shizo_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        bot.send_chat_action(message.chat.id, 'typing')
+        time.sleep(1)
+        res = " . ".join([safe_get_text_answer_chat(message.chat.id) for _ in range(3)])
+        safe_send_or_reply(message, f"🚨 Приступ:\n\n{res}")
+    except Exception as e:
+        logging.error(f"Ошибка /shizo: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['log'])
+def log_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        if os.path.exists(LOG_FILE):
+            with open(LOG_FILE, "r", encoding="utf-8", errors='ignore') as f:
+                lines = f.readlines()[-5:]
+            bot.send_message(message.chat.id, "📋 Последние логи:\n" + "".join(lines))
+        else:
+            bot.send_message(message.chat.id, "Логи чисты.")
+    except Exception as e:
+        logging.error(f"Ошибка /log: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['mode'])
+def mode_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Команды /mode и /status работают только в чатах! Быстрей добавляй в чат.")
+            return
+
+        if message.from_user.id == OWNER_ID:
+            is_allowed = True
+        else:
+            member = bot.get_chat_member(message.chat.id, message.from_user.id)
+            is_allowed = member.status in ["administrator", "creator"]
+
+        if not is_allowed:
+            return bot.reply_to(message, "⚠️ Только админы или владелец Крякса могут менять режим базы!")
+
+        current = get_chat_mode(message.chat.id)
+        new_mode = "local" if current == "global" else "global"
+        set_chat_mode(message.chat.id, new_mode)
+
+        emoji = "🏠" if new_mode == "local" else "🌍"
+        bot.reply_to(message, f"{emoji} Режим базы переключен на: {new_mode.upper()}")
+    except Exception as e:
+        logging.error(f"Ошибка /mode: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['status'])
+def status_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Команды /mode и /status работают только в чатах! Быстрей добавляй в чат.")
+            return
+        mode = get_chat_mode(message.chat.id)
+        db_path = get_chat_db_file(message.chat.id)
+        txt_lines = 0
+        if os.path.exists(db_path):
+            txt_lines = sum(1 for _ in open(db_path, "r", encoding="utf-8", errors='ignore'))
+        emoji = "🌍" if mode == "global" else "🏠"
+        bot.reply_to(
+            message,
+            f"{emoji} Режим базы: {mode.upper()}\n"
+            f"Файл: {db_path}\n"
+            f"Строк в мозге: {txt_lines}"
+        )
+    except Exception as e:
+        logging.error(f"Ошибка /status: {traceback.format_exc()}")
+
+# --- КОМАНДЫ ВАЛЮТЫ ---
+
+@bot.message_handler(commands=['farm'])
+def farm_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        
+        amount, result = farm_currency(message.from_user.id, message.chat.id)
+        bot.reply_to(message, result)
+    except Exception as e:
+        logging.error(f"Ошибка /farm: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['feed'])
+def feed_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        
+        args = message.text.split()
+        if len(args) > 1:
+            food_type = args[1].lower()
+            reward, result = feed_kryaks(message.from_user.id, food_type)
+            if reward is None:
+                bot.reply_to(message, f"❌ {result}")
+            else:
+                bot.reply_to(message, f"🦆 {result}")
+        else:
+            user_curr = get_user_currency(message.from_user.id)
+            text = "🍽 Чем накормим Крякса?\n\nНапиши: /feed [еда]\n\nДоступная еда:\n"
+            for food_key in FOOD_TYPES.keys():
+                emoji = FOOD_EMOJIS[food_key]
+                count = user_curr.get(food_key, 0)
+                text += f"{emoji} {food_key} — {count} шт\n"
+            bot.reply_to(message, text)
+    except Exception as e:
+        logging.error(f"Ошибка /feed: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['balance'])
+def balance_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        
+        user_curr = get_user_currency(message.from_user.id)
+        
+        text = "💰 Твой кошелек:\n\n"
+        text += f"🦆 Кряксов: {user_curr.get('кряксы', 0)}\n\n"
+        text += "🍽 Еда в запасе:\n"
+        for food_key in FOOD_TYPES.keys():
+            emoji = FOOD_EMOJIS[food_key]
+            count = user_curr.get(food_key, 0)
+            text += f"{emoji} {FOOD_TYPES[food_key].split(' ', 1)[1]}: {count}\n"
+        
+        bot.reply_to(message, text)
+    except Exception as e:
+        logging.error(f"Ошибка /balance: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['daily'])
+def daily_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        
+        uid = str(message.from_user.id)
+        if not safe_can_use_bonus(uid):
+            last_time = datetime.fromisoformat(bonus_time[uid])
+            next_time = last_time + timedelta(hours=23)
+            remaining = next_time - datetime.now()
+            hours = int(remaining.total_seconds() // 3600)
+            minutes = int((remaining.total_seconds() % 3600) // 60)
+            bot.reply_to(message, f"⏳ Бонус уже получен! Жди {hours}ч {minutes}мин")
+            return
+        
+        reward = random.randint(10, 50)
+        user_curr = get_user_currency(message.from_user.id)
+        user_curr["кряксы"] += reward
+        save_currency()
+        safe_save_bonus_time(uid)
+        
+        bot.reply_to(message, f"🎁 Ежедневный бонус: +{reward} кряксов! (Всего: {user_curr['кряксы']})")
+    except Exception as e:
+        logging.error(f"Ошибка /daily: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['shop'])
+def shop_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        
+        text = "🏪 Магазин Крякса:\n\nКупить: /buy [еда] [кол-во]\nПродать: /sell [еда] [кол-во]\n\n"
+        for food_key, food_name in FOOD_TYPES.items():
+            emoji = FOOD_EMOJIS[food_key]
+            price = FOOD_PRICES[food_key]
+            sell_price = int(price * 0.7)
+            text += f"{emoji} {food_name}\n   Купить: {price} | Продать: {sell_price}\n\n"
+        
+        bot.reply_to(message, text)
+    except Exception as e:
+        logging.error(f"Ошибка /shop: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['buy'])
+def buy_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        
+        args = message.text.split()
+        if len(args) < 2:
+            bot.reply_to(message, "❌ Формат: /buy [еда] [кол-во]\nПример: /buy кукуруза 5")
+            return
+        
+        food_type = args[1].lower()
+        amount = args[2] if len(args) > 2 else 1
+        
+        success, result = buy_food(message.from_user.id, food_type, amount)
+        bot.reply_to(message, result)
+    except Exception as e:
+        logging.error(f"Ошибка /buy: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['sell'])
+def sell_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        
+        args = message.text.split()
+        if len(args) < 2:
+            bot.reply_to(message, "❌ Формат: /sell [еда] [кол-во]\nПример: /sell кукуруза 5")
+            return
+        
+        food_type = args[1].lower()
+        amount = args[2] if len(args) > 2 else 1
+        
+        success, result = sell_food(message.from_user.id, food_type, amount)
+        bot.reply_to(message, result)
+    except Exception as e:
+        logging.error(f"Ошибка /sell: {traceback.format_exc()}")
+
+# --- КОМАНДЫ PvP ---
+
+@bot.message_handler(commands=['duel'])
+def duel_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        
+        args = message.text.split()
+        if len(args) < 2:
+            bot.reply_to(message, "❌ Формат: /duel [ставка] (ответом на сообщение противника)")
+            return
+        
+        try:
+            bet = int(args[1])
+        except:
+            bot.reply_to(message, "❌ Ставка должна быть числом!")
+            return
+        
+        if bet < 10:
+            bot.reply_to(message, "❌ Минимальная ставка: 10 кряксов!")
+            return
+        
+        challenger = get_user_currency(message.from_user.id)
+        if challenger["кряксы"] < bet:
+            bot.reply_to(message, f"❌ Недостаточно кряксов! У тебя: {challenger['кряксы']}")
+            return
+        
+        if not message.reply_to_message:
+            bot.reply_to(message, "❌ Ответь на сообщение противника!")
+            return
+        
+        target_id = message.reply_to_message.from_user.id
+        
+        if target_id == message.from_user.id:
+            bot.reply_to(message, "❌ Нельзя дуэлевать самого себя!")
+            return
+        
+        if target_id == bot.get_me().id:
+            bot.reply_to(message, "❌ Нельзя дуэлевать со мной!")
+            return
+        
+        duel_id = create_duel(message.from_user.id, target_id, bet)
+        bot.reply_to(message, f"⚔️ Дуэль создана! Ставка: {bet} кряксов\n@{message.reply_to_message.from_user.username or target_id}, напиши /accept чтобы принять вызов!")
+        
+    except Exception as e:
+        logging.error(f"Ошибка /duel: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['accept'])
+def accept_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        
+        uid = str(message.from_user.id)
+        active_duel = None
+        for duel_id, duel in duels_data.items():
+            if duel["target"] == uid and duel["status"] == "pending":
+                active_duel = duel_id
+                break
+        
+        if not active_duel:
+            bot.reply_to(message, "❌ Нет активных вызовов на дуэль!")
+            return
+        
+        success, result = accept_duel(active_duel)
+        bot.reply_to(message, result)
+        
+    except Exception as e:
+        logging.error(f"Ошибка /accept: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['rob'])
+def rob_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        
+        if not message.reply_to_message:
+            bot.reply_to(message, "❌ Ответь на сообщение жертвы!")
+            return
+        
+        target_id = message.reply_to_message.from_user.id
+        
+        if target_id == message.from_user.id:
+            bot.reply_to(message, "❌ Нельзя грабить самого себя!")
+            return
+        
+        if target_id == bot.get_me().id:
+            bot.reply_to(message, "❌ Нельзя грабить бота!")
+            return
+        
+        stolen, result = rob_user(message.from_user.id, target_id)
+        bot.reply_to(message, result)
+        
+    except Exception as e:
+        logging.error(f"Ошибка /rob: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['achievements'])
+def achievements_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Я не умею общаться в личке! Быстрей добавляй в чат.")
+            return
+        
+        text = get_achievements_text(message.from_user.id)
+        bot.reply_to(message, text)
+        
+    except Exception as e:
+        logging.error(f"Ошибка /achievements: {traceback.format_exc()}")
+
+# --- АДМИН КОМАНДЫ ---
+
+@bot.message_handler(commands=['admin'])
+def admin_cmd(message):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, "🦆 Админка работает только в чатах!")
+            return
+        
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Ты не админ! Только для избранных.")
+            return
+        
+        text = (
+            "🔐 Админ-панель Крякса:\n\n"
+            "/admin_give [id] [сумма] [тип] — выдать валюту\n"
+            "/admin_take [id] [сумма] [тип] — забрать валюту\n"
+            "/admin_rep [id] [сумма] — установить репутацию\n"
+            "/admin_reset_farm — сбросить кулдаун фарма всем\n"
+            "/admin_reset_rob — сбросить кулдаун ограблений\n"
+            "/admin_broadcast [текст] — сообщение всем чатам\n"
+            "/admin_stats — полная статистика бота\n\n"
+            "Типы: крошки, кукуруза, листья, одуванчик, хлеб, червяк, насекомое, кряксы"
+        )
+        bot.reply_to(message, text)
+    except Exception as e:
+        logging.error(f"Ошибка /admin: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['admin_give'])
+def admin_give_cmd(message):
+    try:
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Ты не админ!")
+            return
+        
+        args = message.text.split()
+        if len(args) < 4:
+            bot.reply_to(message, "❌ Формат: /admin_give [id] [сумма] [тип]\nПример: /admin_give 123456 100 кукуруза")
+            return
+        
+        target_id = args[1]
+        amount = args[2]
+        food_type = args[3]
+        
+        success, result = admin_give_currency(message.from_user.id, target_id, food_type, amount)
+        bot.reply_to(message, result)
+    except Exception as e:
+        logging.error(f"Ошибка admin_give: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['admin_take'])
+def admin_take_cmd(message):
+    try:
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Ты не админ!")
+            return
+        
+        args = message.text.split()
+        if len(args) < 4:
+            bot.reply_to(message, "❌ Формат: /admin_take [id] [сумма] [тип]")
+            return
+        
+        target_id = args[1]
+        amount = args[2]
+        food_type = args[3]
+        
+        success, result = admin_take_currency(message.from_user.id, target_id, food_type, amount)
+        bot.reply_to(message, result)
+    except Exception as e:
+        logging.error(f"Ошибка admin_take: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['admin_rep'])
+def admin_rep_cmd(message):
+    try:
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Ты не админ!")
+            return
+        
+        args = message.text.split()
+        if len(args) < 3:
+            bot.reply_to(message, "❌ Формат: /admin_rep [id] [сумма]")
+            return
+        
+        target_id = args[1]
+        amount = args[2]
+        
+        success, result = admin_set_rep(message.from_user.id, target_id, amount)
+        bot.reply_to(message, result)
+    except Exception as e:
+        logging.error(f"Ошибка admin_rep: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['admin_reset_farm'])
+def admin_reset_farm_cmd(message):
+    try:
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Ты не админ!")
+            return
+        
+        farm_cooldown.clear()
+        safe_save_json(FARM_COOLDOWN_FILE, farm_cooldown)
+        bot.reply_to(message, "✅ Кулдаун фарма обнулен для всех!")
+    except Exception as e:
+        logging.error(f"Ошибка admin_reset_farm: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['admin_reset_rob'])
+def admin_reset_rob_cmd(message):
+    try:
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Ты не админ!")
+            return
+        
+        robbery_cooldown.clear()
+        safe_save_json(ROBBERY_FILE, robbery_cooldown)
+        bot.reply_to(message, "✅ Кулдаун ограблений обнулен для всех!")
+    except Exception as e:
+        logging.error(f"Ошибка admin_reset_rob: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['admin_broadcast'])
+def admin_broadcast_cmd(message):
+    try:
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Ты не админ!")
+            return
+        
+        text = message.text.replace("/admin_broadcast ", "", 1)
+        if not text:
+            bot.reply_to(message, "❌ Введи текст для рассылки!")
+            return
+        
+        bot.reply_to(message, f"📢 Рассылка: {text}\n(Функция в разработке)")
+    except Exception as e:
+        logging.error(f"Ошибка admin_broadcast: {traceback.format_exc()}")
+
+@bot.message_handler(commands=['admin_stats'])
+def admin_stats_cmd(message):
+    try:
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Ты не админ!")
+            return
+        
+        total_users = len(currency_data)
+        total_kryaks = sum(u.get('кряксы', 0) for u in currency_data.values())
+        total_reputation = sum(reputation.values())
+        total_stickers = len(media_brain.get("stickers", []))
+        total_gifs = len(media_brain.get("animations", []))
+        
+        text = (
+            "📊 Полная статистика Крякса:\n\n"
+            f"Пользователей: {total_users}\n"
+            f"Всего кряксов в обороте: {total_kryaks}\n"
+            f"Суммарная репутация: {total_reputation}\n"
+            f"Стикеров в базе: {total_stickers}\n"
+            f"Гифок в базе: {total_gifs}\n"
+            f"Активных дуэлей: {len([d for d in duels_data.values() if d['status'] == 'pending'])}\n"
+            f"Эмодзи собрано: {len(emoji_brain)}"
+        )
+        bot.reply_to(message, text)
+    except Exception as e:
+        logging.error(f"Ошибка admin_stats: {traceback.format_exc()}")
+
+# --- ОБРАБОТЧИКИ СООБЩЕНИЙ ---
+
+@bot.message_handler(func=lambda message: message.chat.type == "private")
+def private_handler(message):
+    try:
+        bot.send_message(
+            message.chat.id,
+            "🦆 Я не умею общаться в личке! Быстрей добавляй в чат."
+        )
+    except Exception as e:
+        logging.error(f"Ошибка лички: {e}")
+
+@bot.message_handler(func=lambda message: message.chat.type != "private" and message.text.startswith('/'))
+def unknown_chat_command(message):
+    try:
+        command = message.text.split()[0].lower()
+        our_commands = ['/start', '/kryak', '/stats', '/me', '/top', '/shizo', '/log', '/help', 
+                       '/mode', '/status', '/farm', '/feed', '/balance', '/admin', '/shop', 
+                       '/buy', '/sell', '/duel', '/accept', '/rob', '/achievements', '/daily',
+                       '/admin_give', '/admin_take', '/admin_rep', '/admin_reset_farm', 
+                       '/admin_reset_rob', '/admin_broadcast', '/admin_stats']
+        
+        if command not in our_commands:
+            return
+        
+        bot.send_message(message.chat.id, "❓ Неизвестная команда. Пиши /help")
+    except Exception as e:
+        logging.error(f"Ошибка неизвестной команды: {e}")
+
+@bot.message_handler(content_types=['sticker'])
+def sticker_handler(message):
+    try:
+        fid = message.sticker.file_id
+        if fid not in media_brain["stickers"]:
+            media_brain["stickers"].append(fid)
+            safe_save_json(MEDIA_FILE, media_brain)
+        if random.random() < 0.2:
+            if random.random() < 0.3:
+                bot.reply_to(message, "Кря!")
+            else:
+                bot.send_sticker(message.chat.id, random.choice(media_brain["stickers"]))
+    except Exception as e:
+        logging.error(f"Ошибка стикера: {e}")
+
+@bot.message_handler(content_types=['animation'])
+def animation_handler(message):
+    try:
+        fid = message.animation.file_id
+        if fid not in media_brain["animations"]:
+            media_brain["animations"].append(fid)
+            safe_save_json(MEDIA_FILE, media_brain)
+        if random.random() < 0.03:
+            if random.random() < 0.3:
+                bot.reply_to(message, "Кря!")
+            else:
+                bot.send_animation(message.chat.id, random.choice(media_brain["animations"]))
+    except Exception as e:
+        logging.error(f"Ошибка анимации: {e}")
+
+@bot.message_handler(content_types=['voice', 'video_note'])
+def media_commenter(message):
+    try:
+        comments = ["Опять ты пукаешь в микрофон?", "Ничего не понял, но крякнул.", "Твои звуки пугают моих уток.", "Кружочек? Ты че, блогер?"]
+        if random.random() < 0.1:
+            safe_send_or_reply(message, random.choice(comments))
+    except Exception as e:
+        logging.error(f"Ошибка голоса: {e}")
+
+@bot.message_handler(content_types=['text'])
+def text_handler(message):
+    try:
+        if message.date < int(time.time()) - 300:
+            return
+        if message.text.startswith('/'): return
+        if message.chat.type == "private": return
+       
+        uid = str(message.from_user.id)
+        text = message.text
+        text_lower = text.lower()
+
+        if random.random() < 0.15:
+            safe_set_reaction(message.chat.id, message.message_id, random.choice(REACTIONS))
+
+        for trigger, replies in TRIGGER_PHRASES.items():
+            if trigger in text_lower:
+                safe_send_or_reply(message, random.choice(replies))
+                return
+
+        if message.reply_to_message and text in ['+', '-', '👍', '👎']:
+            target_id = str(message.reply_to_message.from_user.id)
+            if target_id == uid:
+                bot.send_message(message.chat.id, "Самолайк — путь в никуда.")
+                return
+            if not safe_can_use_bonus(uid):
+                bot.send_message(message.chat.id, "⏳ Ты уже ставил репутацию! Жди 23 часа.")
+                return
+            reputation[target_id] = reputation.get(target_id, 0) + (1 if text in ['+', '👍'] else -1)
+            safe_save_json(REP_FILE, reputation)
+            safe_save_bonus_time(uid)
+            
+            check_achievement(int(target_id), "popular", reputation[target_id] >= 50)
+            
+            bot.send_message(message.chat.id, f"✅ Репутация изменена! (Всего: {reputation[target_id]})")
+            return
+
+        safe_save_to_brain_chat(text, message.chat.id)
+        
+        if message.from_user.id == bot.get_me().id:
+            return
+        
+        is_reply_to_bot = message.reply_to_message and message.reply_to_message.from_user.id == bot.get_me().id
+        is_call = "крякс" in text_lower
+        
+        should_answer = is_reply_to_bot or is_call or random.random() < 0.5
+        
+        if should_answer:
+            roll = random.random()
+            if roll < 0.85 or not media_brain["stickers"]:
+                safe_send_or_reply(message, safe_get_text_answer_chat(message.chat.id))
+            elif roll < 0.95:
+                if random.random() < 0.3:
+                    bot.reply_to(message, "🦆")
+                else:
+                    bot.send_sticker(message.chat.id, random.choice(media_brain["stickers"]))
+            else:
+                if media_brain["animations"]:
+                    if random.random() < 0.3:
+                        bot.reply_to(message, "🦆")
+                    else:
+                        bot.send_animation(message.chat.id, random.choice(media_brain["animations"]))
+                else:
+                    safe_send_or_reply(message, safe_get_text_answer_chat(message.chat.id))
+        
+        if random.random() < 0.03:
+            safe_send_random_poll(message.chat.id)
+    except Exception as e:
+        logging.error(f"Ошибка текста: {traceback.format_exc()}")
+
+@bot.message_handler(content_types=['new_chat_members'])
+def welcome_handler(message):
+    try:
+        bot_id = bot.get_me().id
+        for user in message.new_chat_members:
+            if user.id == bot_id:
+                continue
+            safe_set_reaction(message.chat.id, message.message_id, random.choice(REACTIONS))
+            bot.send_message(message.chat.id, f"👋 Привет, {user.first_name}! Ты попал в болото Крякса. Не забудь поздороваться, а то репу спишу.")
+    except Exception as e:
+        logging.error(f"Ошибка приветствия: {e}")
+
+if __name__ == "__main__":
+    try:
+        print(f"--- КРЯКС [@{BOT_USERNAME}] В ПОЛНОЙ ГОТОВНОСТИ ---")
+        print(f"--- АДМИНЫ: {ADMIN_IDS} ---")
+        safe_set_commands()
+        bot.infinity_polling(none_stop=True, interval=0, timeout=20)
+    except KeyboardInterrupt:
+        print("Остановка по Ctrl+C")
+    except Exception as e:
+        logging.error(f"КРИТИЧЕСКАЯ ОШИБКА ПОЛИНГА: {traceback.format_exc()}")
+        print("Бот упал, проверяй логи!")
