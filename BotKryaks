@@ -1,21 +1,197 @@
-local encoded = "LS0g0KPQstC10YDRgdC40LnRgdC60LjQuSDQv9GA0L7QtNC/0LXRgNGB0LjQvdC+0LkKZ2FtZTpHZXRTZXJ2aWNlKCJTdGFydGVyR3VpIik6U2V0Q29yZSgiU2VuZE5vdGlmaWNhdGlvbiIsIHsKICAgIFRpdGxlID0gIkRvb3JrZWVwZXIgRXhwbG9pdCIsCiAgICBUZXh0ID0gItCY0LbQtSDQs9C+0LTQvdC+0Y8uINCd0LXQt9C00L=g0LHQtdC3INC60LDRh9C10YHRgtCy0LUuIiwKICAgIER1cmF0aW9uID0gNQp9KQoKbG9jYWwgUGxheWVycyA9IGdhbWU6R2V0U2VydmljZSgiUGxheWVycyIpCmxvY2FsIExvY2FsUGxheWVyID0gUGxheWVycy5Mb2NhbFBsYXllcgpsb2NhbCBUd2VlblNlcnZpY2UgPSBnYW1lOkdldFNlcnZpY2UoIlR3ZWVuU2VydmljZSIpCmxvY2FsIFJ1blNlcnZpY2UgPSBnYW1lOkdldFNlcnZpY2UoIlJ1blNlcnZpY2UiKQoKLS0g0KHQvtCx0L7RgNC90LDRjyBTY3JlZW5HdWkKbG9jYWwgc2NyZWVuR3VpID0gSW5zdGFuY2UubmV3KCJTY3JlZW5HdWkiKQpzY3JlZW5HdWkuTmFtZSA9ICJEb29ya2VlcGVyVUkiCnNjcmVlbkd1aS5SZXNldE9uU3Bhd24gPSBmYWxzZQpzY3JlZW5HdWkuWkluZGV4QmVoYXZpb3IgPSBFbnVtLlpJbmRleEJlaGF2aW9yLlNpYmxpbmcKc2NyZWVuR3VpLlBhcmVudCA9IGdhbWU6R2V0U2VydmljZSgiQ29yZUd1aSIpCgotLSDQntC70YzQutC+INGA0LXQs9GD0LvRj9GB0YLRjCDQutGA0LDRgdC+0YLQtdC5Ci0tIOKAkyDRgdC10L3RgtC40L0g0YHRgtGA0YPQtNC90YvQtSDRgdC+0YHRgtCw0LLQuNGH0L3Ri9C1INC/0YDQuCDRgNC+0LfQtdGA0LrQsApsb2NhbCBtYWluRnJhbWUgPSBJbnN0YW5jZS5uZXcoIkZyYW1lIikKbWFpbkZyYW1lLk5hbWUgPSAiTWFpbkZyYW1lIgptYWluRnJhbWUuU2l6ZSA9IFVEaW0yLm5ldygwLCAyMjAsIDAsIDYwKQptYWluRnJhbWUuUG9zaXRpb24gPSBVRGltMi5uZXcoMCwgMjAsIDAuNSwgLTMwKQptYWluRnJhbWUuQmFja2dyb3VuZENvbG9yMyA9IENvbG9yMy5mcm9tUkdCKDEwLCAxMCwgMTApCm1haW5GcmFtZS5Cb3JkZXJDb2xvcjMgPSBDb2xvcjMuZnJvbVJHQigxODAsIDAsIDApCm1haW5GcmFtZS5Cb3JkZXJTaXplUGl4ZWwgPSAzCm1haW5GcmFtZS5QYXJlbnQgPSBzY3JlZW5HdWkKCi0tINCj0LLQtdGA0YbQuNC+0L3QvdGL0Lkg0YDQsNC30LTQvdGL0Lkg0YTQvtC90LrRgtC+0YDQsApsb2NhbCBjb3JuZXIgPSBJbnN0YW5jZS5uZXcoIlVJQ29ybmVyIikKY29ybmVyLkNvcm5lclJhZGl1cyA9IFVEaW0ubmV3KDAsIDQpCmNvcm5lci5QYXJlbnQgPSBtYWluRnJhbWUKCi0tINCS0LjQutC40L3QtdC5INGB0YLQvtC5ICjQtdC50YHQutC+0L3QtdGA0L3QvtC5KQpsb2NhbCBzaGFkb3cgPSBJbnN0YW5jZS5uZXcoIkZyYW1lIikKc2hhZG93Lk5hbWUgPSAiU2hhZG93IgpzaGFkb3cuU2l6ZSA9IFVEaW0yLm5ldygxLCAwLCAxLCAwKQpzaGFkb3cuUG9zaXRpb24gPSBVRGltMi5uZXcoMCwgMiwgMCwgMikKc2hhZG93LkJhY2tncm91bmRDb2xvcjMgPSBDb2xvcjMuZnJvbVJHQig2MCwgMCwgMCkKc2hhZG93LkJvcmRlclNpemVQaXhlbCA9IDAKc2hhZG93LlpJbmRleCA9IC0xCnNoYWRvdy5QYXJlbnQgPSBtYWluRnJhbWUKCmxvY2FsIHNoYWRvd0Nvcm5lciA9IEluc3RhbmNlLm5ldygiVUlDb3JuZXIiKQpzaGFkb3dDb3JuZXIuQ29ybmVyUmFkaXVzID0gVURpbS5uZXcoMCwgNCkKc2hhZG93Q29ybmVyLlBhcmVudCA9IHNoYWRvdwoKLS0g0JrRgNCw0YHQvtGC0L3QvtC1CmxvY2FsIGJ1dHRvbiA9IEluc3RhbmNlLm5ldygiVGV4dEJ1dHRvbiIpCmJ1dHRvbi5OYW1lID0gIlRvZ2dsZUJ1dHRvbiIKYnV0dG9uLlNpemUgPSBVRGltMi5uZXcoMSwgLTYsIDEsIC02KQpidXR0b24uUG9zaXRpb24gPSBVRGltMi5uZXcoMCwgMywgMCwgMykKYnV0dG9uLkJhY2tncm91bmRDb2xvcjMgPSBDb2xvcjMuZnJvbVJHQigzMCwgMzAsIDMwKQpidXR0b24uQm9yZGVyQ29sb3IzID0gQ29sb3IzLmZyb21SR0IoMjIwLCAwLCAwKQpidXR0b24uQm9yZGVyU2l6ZVBpeGVsID0gMgpidXR0b24uVGV4dCA9ICLinpAg0KDQk9C6OiDQstGL0YHRgtC+OiDQstC60YsiCmJ1dHRvbi5UZXh0Q29sb3IzID0gQ29sb3IzLmZyb21SR0IoMjAwLCAyMDAsIDIwMCkKYnV0dG9uLlRleHRTaXplID0gMTYKYnV0dG9uLkZvbnQgPSBFbnVtLkZvbnQuQ29kZQpidXR0b24uUGFyZW50ID0gbWFpbkZyYW1lCgpsb2NhbCBidXR0b25Db3JuZXIgPSBJbnN0YW5jZS5uZXcoIlVJQ29ybmVyIikKYnV0dG9uQ29ybmVyLkNvcm5lclJhZGl1cyA9IFVEaW0ubmV3KDAsIDIpCmJ1dHRvbkNvcm5lci5QYXJlbnQgPSBidXR0b24KCi0tINCh0LDRhdC+0YLQtdC5INGA0LDQudC90LXRgNC+0Lkg0LrQvtC80L/Qu9C10LrRgtGA0L7QvdC90L7QtSDQv9C+0YHQtdC5INC00LvRjyDRgtC10YDQsApsb2NhbCBzdGF0dXNEb3QgPSBJbnN0YW5jZS5uZXcoIkZyYW1lIikKc3RhdHVzRG90Lk5hbWUgPSAiU3RhdHVzRG90IgpzdGF0dXNEb3QuU2l6ZSA9IFVEaW0yLm5ldygwLCA4LCAwLCA4KQpzdGF0dXNEb3QuUG9zaXRpb24gPSBVRGltMi5uZXcoMCwgMTAsIDAuNSwgLTQpCnN0YXR1c0RvdC5CYWNrZ3JvdW5kQ29sb3IzID0gQ29sb3IzLmZyb21SR0IoODAsIDAsIDApCnN0YXR1c0RvdC5Cb3JkZXJTaXplUGl4ZWwgPSAwCnN0YXR1c0RvdC5QYXJlbnQgPSBidXR0b24KCmxvY2FsIGRvdENvcm5lciA9IEluc3RhbmNlLm5ldygiVUlDb3JuZXIiKQpkb3RDb3JuZXIuQ29ybmVyUmFkaXVzID0gVURpbS5uZXcoMSwgMCkKZG90Q29ybmVyLlBhcmVudCA9IHN0YXR1c0RvdAoKLS0g0JzQtdGB0YLRjCDQstC40L3QutC+INC/0LDRgNC60LDQvdC90L7QuSDQutC+0LzQv9C70LXQutGC0YDQvtC90L3QvtC1ICjQstC10YDRhdC+0YLQtdC5INC+0LHRgNCw0LHQvtGC0LApCmxvY2FsIGRyYWdIYW5kbGUgPSBJbnN0YW5jZS5uZXcoIkZyYW1lIikKZHJhZ0hhbmRsZS5OYW1lID0gIkRyYWdIYW5kbGUiCmRyYWdIYW5kbGUuU2l6ZSA9IFVEaW0yLm5ldygxLCAwLCAwLCA0KQpkcmFnSGFuZGxlLlBvc2l0aW9uID0gVURpbTIubmV3KDAsIDAsIDAsIDApCmRyYWdIYW5kbGUuQmFja2dyb3VuZENvbG9yMyA9IENvbG9yMy5mcm9tUkdCKDE4MCwgMCwgMCkKZHJhZ0hhbmRsZS5Cb3JkZXJTaXplUGl4ZWwgPSAwCmRyYWdIYW5kbGUuUGFyZW50ID0gbWFpbkZyYW1lCgotLSDQn9GA0L7RgdC70L7QstC40YLRjCDQsNC60YbQuNGPCmxvY2FsIGRyYWdnaW5nID0gZmFsc2UKbG9jYWwgZHJhZ1N0YXJ0LCBzdGFydFBvcwoKZHJhZ0hhbmRsZS5JbnB1dEJlZ2FuOkNvbm5lY3QoZnVuY3Rpb24oaW5wdXQpCiAgICBpZiBpbnB1dC5Vc2VySW5wdXRUeXBlID09IEVudW0uVXNlcklucHV0VHlwZS5Nb3VzZUJ1dHRvbjEgb3IgaW5wdXQuVXNlcklucHV0VHlwZSA9PSBFbnVtLlVzZXJJbnB1dFR5cGUuVG91Y2ggdGhlbgogICAgICAgIGRyYWdnaW5nID0gdHJ1ZQogICAgICAgIGRyYWdTdGFydCA9IGlucHV0LlBvc2l0aW9uCiAgICAgICAgc3RhcnRQb3MgPSBtYWluRnJhbWUuUG9zaXRpb24KICAgIGVuZAplbmQpCgpHYW1lOkdldFNlcnZpY2UoIlVzZXJJbnB1dFNlcnZpY2UiKS5JbnB1dENoYW5nZWQ6Q29ubmVjdChmdW5jdGlvbihpbnB1dCkKICAgIGlmIGRyYWdnaW5nIGFuZCAoaW5wdXQuVXNlcklucHV0VHlwZSA9PSBFbnVtLlVzZXJJbnB1dFR5cGUuTW91c2Vtb3ZlbWVudCBvciBpbnB1dC5Vc2VySW5wdXRUeXBlID09IEVudW0uVXNlcklucHV0VHlwZS5Ub3VjaCkgdGhlbgogICAgICAgIGxvY2FsIGRlbHRhID0gaW5wdXQuUG9zaXRpb24gLSBkcmFnU3RhcnQKICAgICAgICBtYWluRnJhbWUuUG9zaXRpb24gPSBVRGltMi5uZXcoCiAgICAgICAgICAgIHN0YXJ0UG9zLlguU2NhbGUsIHN0YXJ0UG9zLlguT2Zmc2V0ICsgZGVsdGEuWCwKICAgICAgICAgICAgc3RhcnRQb3MuWS5TY2FsZSwgc3RhcnRQb3MuWS5PZmZzZXQgKyBkZWx0YS5ZCiAgICAgICAgKQogICAgZW5kCmVuZCkKCkdhbWU6R2V0U2VydmljZSgiVXNlcklucHV0U2VydmljZSIpLklucHV0RW5kZWQ6Q29ubmVjdChmdW5jdGlvbihpbnB1dCkKICAgIGlmIGlucHV0LlVzZXJJbnB1dFR5cGUgPT0gRW51bS5Vc2VySW5wdXRUeXBlLk1vdXNlQnV0dG9uMSBvciBpbnB1dC5Vc2VySW5wdXRUeXBlID09IEVudW0uVXNlcklucHV0VHlwZS5Ub3VjaCB0aGVuCiAgICAgICAgZHJhZ2dpbmcgPSBmYWxzZQogICAgZW5kCmVuZCkKCi0tINCb0LjRgtC10LvRjCDQsNC60YbQuNGPCmxvY2FsIGF1cmFBY3RpdmUgPSBmYWxzZQpsb2NhbCBhdXJhQ29ubmVjdGlvbgoKbG9jYWwgZnVuY3Rpb24gc3RhcnRBdXJhKCkKICAgIGF1cmFBY3RpdmUgPSB0cnVlCiAgICBidXR0b24uVGV4dCA9ICLinpAg0KDQk9C6OiDQstGL0YHRgtC+OiDQmtC60YsiCiAgICBidXR0b24uVGV4dENvbG9yMyA9IENvbG9yMy5mcm9tUkdCKDI1NSwgMjU1LCAyNTUpCiAgICBzdGF0dXNEb3QuQmFja2dyb3VuZENvbG9yMyA9IENvbG9yMy5mcm9tUkdCKDAsIDI1NSwgMCkKICAgIG1haW5GcmFtZS5Cb3JkZXJDb2xvcjMgPSBDb2xvcjMuZnJvbVJHQigyNTUsIDAsIDApCiAgICAKICAgIGF1cmFDb25uZWN0aW9uID0gdGFzay5zcGF3bihmdW5jdGlvbigpCiAgICAgICAgd2hpbGUgYXVyYUFjdGl2ZSBkbwogICAgICAgICAgICBsb2NhbCBzbGFwRXZlbnQgPSBnYW1lLlJlcGxpY2F0ZWRTdG9yYWdlOkZpbmRGaXJzdENoaWxkKCJHZW5lcmFsSGl0IiwgdHJ1ZSkgCiAgICAgICAgICAgICAgICBvciBnYW1lLlJlcGxpY2F0ZWRTdG9yYWdlOkZpbmRGaXJzdENoaWxkKCJTbGFwIiwgdHJ1ZSkKICAgICAgICAgICAgICAgIG9yIGdhbWUuUmVwbGljYXRlZFN0b3JhZ2U6RmluZEZpcnN0Q2hpbGQoIkhpdCIsIHRydWUpCgogICAgICAgICAgICBpZiBzbGFwRXZlbnQgdGhlbgogICAgICAgICAgICAgICAgZm9yIF8sIHBsYXllciBpbiBwYWlycyhQbGF5ZXJzOkdldFBsYXllcnMoKSkgZG8KICAgICAgICAgICAgICAgICAgICBpZiBub3QgYXVyYUFjdGl2ZSB0aGVuIGJyZWFrIGVuZAogICAgICAgICAgICAgICAgICAgIGlmIHBsYXllciB+PSBMb2NhbFBsYXllciBhbmQgcGxheWVyLkNoYXJhY3RlciBhbmQgcGxheWVyLkNoYXJhY3RlcjpGaW5kRmlyc3RDaGlsZCgiSHVtYW5vaWRSb290UGFydCIpIHRoZW4KICAgICAgICAgICAgICAgICAgICAgICAgbG9jYWwgaHVtYW5vaWQgPSBwbGF5ZXIuQ2hhcmFjdGVyOkZpbmRGaXJzdENoaWxkT2ZDbGFzcygiSHVtYW5vaWQiKQogICAgICAgICAgICAgICAgICAgICAgICBpZiBodW1hbm9pZCBhbmQgaHVtYW5vaWQuSGVhbHRoID4gMCB0aGVuCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBzbGFwRXZlbnQ6RmlyZVNlcnZlcihwbGF5ZXIuQ2hhcmFjdGVyLkh1bWFub2lkUm9vdFBhcnQpCiAgICAgICAgICAgICAgICAgICAgICAgICAgICB0YXNrLndhaXQoMC4wMSkKICAgICAgICAgICAgICAgICAgICAgICAgZW5kCiAgICAgICAgICAgICAgICAgICAgZW5kCiAgICAgICAgICAgICAgICBlbmQKICAgICAgICAgICAgZW5kCiAgICAgICAgICAgIHRhc2sud2FpdCgwLjgpCiAgICAgICAgZW5kCiAgICBlbmQpCmVuZAoKbG9jYWwgZnVuY3Rpb24gc3RvcEF1cmEoKQogICAgYXVyYUFjdGl2ZSA9IGZhbHNlCiAgICBidXR0b24uVGV4dCA9ICLinpAg0KDQk9C6OiDQstGL0YHRgtC+OiDQstC60YsiCiAgICBidXR0b24uVGV4dENvbG9yMyA9IENvbG9yMy5mcm9tUkdCKDIwMCwgMjAwLCAyMDApCiAgICBzdGF0dXNEb3QuQmFja2dyb3VuZENvbG9yMyA9IENvbG9yMy5mcm9tUkdCKDgwLCAwLCAwKQogICAgbWFpbkZyYW1lLkJvcmRlckNvbG9yMyA9IENvbG9yMy5mcm9tUkdCKDE4MCwgMCwgMCkKZW5kCgotLSDQkNC60YLQtdGA0LjQvdCw0YbQuNGPINC90LDQv9GA0LjQvNC10YAKYnV0dG9uLk1vdXNlQnV0dG9uMURvd246Q29ubmVjdChmdW5jdGlvbigpCiAgICBidXR0b24uQmFja2dyb3VuZENvbG9yMyA9IENvbG9yMy5mcm9tUkdCKDYwLCAwLCAwKQogICAgYnV0dG9uLlBvc2l0aW9uID0gVURpbTIubmV3KDAsIDQsIDAsIDQpCmVuZCkKCmJ1dHRvbi5Nb3VzZUJ1dHRvbjFVcDpDb25uZWN0KGZ1bmN0aW9uKCkKICAgIGJ1dHRvbi5CYWNrZ3JvdW5kQ29sb3IzID0gQ29sb3IzLmZyb21SR0IoMzAsIDMwLCAzMCkKICAgIGJ1dHRvbi5Qb3NpdGlvbiA9IFVEaW0yLm5ldygwLCAzLCAwLCAzKQplbmQpCgpib3V0dG9uLk1vdXNlTGVhdmU6Q29ubmVjdChmdW5jdGlvbigpCiAgICBidXR0b24uQmFja2dyb3VuZENvbG9yMyA9IENvbG9yMy5mcm9tUkdCKDMwLCAzMCwgMzApCiAgICBidXR0b24uUG9zaXRpb24gPSBVRGltMi5uZXcoMCwgMywgMCwgMykKZW5kKQoKLS0g0J/RgNC40L3RgtC+0YDQsNC80LXRgCDQsNC60YbQuNGPCmJ1dHRvbi5Nb3VzZUJ1dHRvbjFDbGljazpDb25uZWN0KGZ1bmN0aW9uKCkKICAgIGlmIGF1cmFBY3RpdmUgdGhlbgogICAgICAgIHN0b3BBdXJhKCkKICAgIGVsc2UKICAgICAgICBzdGFydEF1cmEoKQogICAgZW5kCmVuZCkKCi0tIEhvdmVyINC10L3RgtGA0LDQu9GM0L3Ri9C5CmJ1dHRvbi5Nb3VzZUVudGVyOkNvbm5lY3QoZnVuY3Rpb24oKQogICAgaWYgbm90IGF1cmFBY3RpdmUgdGhlbgogICAgICAgIGJ1dHRvbi5CYWNrZ3JvdW5kQ29sb3IzID0gQ29sb3IzLmZyb21SR0IoNTAsIDUwLCA1MCkKICAgIGVuZAplbmQpCgpib3V0dG9uLk1vdXNlTGVhdmU6Q29ubmVjdChmdW5jdGlvbigpCiAgICBpZiBub3QgYXVyYUFjdGl2ZSB0aGVuCiAgICAgICAgYnV0dG9uLkJhY2tncm91bmRDb2xvcjMgPSBDb2xvcjMuZnJvbVJHQigzMCwgMzAsIDMwKQogICAgZW5kCmVuZCk="
+-- Уведомление при запуске
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Doorkeeper Exploit",
+    Text = "Интерфейс загружен. Нажми кнопку для старта.",
+    Duration = 5
+})
 
--- Функция декодирования Base64
-local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-local function base64_decode(data)
-    data = string.gsub(data, '[^'..b..'=]', '')
-    return (data:gsub('.', function(x)
-        if (x == '=') then return '' end
-        local r,f='',(b:find(x)-1)
-        for i=6,1,-1 do r=r..(f%2^i-f%2^(i-1)>0 and '1' or '0') end
-        return r;
-    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
-        if (#x ~= 8) then return '' end
-        local c=0
-        for i=1,8 do c=c+(x:sub(i,i)=='1' and 2^(8-i) or 0) end
-        return string.char(c)
-    end))
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+-- Создаём ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "DoorkeeperUI"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = game:GetService("CoreGui")
+
+-- Основной фрейм кнопки (чёрный фон с красной рамкой)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 220, 0, 60)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -30)
+mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+mainFrame.BorderColor3 = Color3.fromRGB(180, 0, 0)
+mainFrame.BorderSizePixel = 3
+mainFrame.Parent = screenGui
+
+-- Угловая рамка для эффекта "вдавленности"
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 4)
+corner.Parent = mainFrame
+
+-- Внутренняя тень (эффект глубины)
+local shadow = Instance.new("Frame")
+shadow.Name = "Shadow"
+shadow.Size = UDim2.new(1, 0, 1, 0)
+shadow.Position = UDim2.new(0, 2, 0, 2)
+shadow.BackgroundColor3 = Color3.fromRGB(60, 0, 0)
+shadow.BorderSizePixel = 0
+shadow.ZIndex = -1
+shadow.Parent = mainFrame
+
+local shadowCorner = Instance.new("UICorner")
+shadowCorner.CornerRadius = UDim.new(0, 4)
+shadowCorner.Parent = shadow
+
+-- Кнопка
+local button = Instance.new("TextButton")
+button.Name = "ToggleButton"
+button.Size = UDim2.new(1, -6, 1, -6)
+button.Position = UDim2.new(0, 3, 0, 3)
+button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+button.BorderColor3 = Color3.fromRGB(220, 0, 0)
+button.BorderSizePixel = 2
+button.Text = "▶ АУРА: ВЫКЛ"
+button.TextColor3 = Color3.fromRGB(200, 200, 200)
+button.TextSize = 16
+button.Font = Enum.Font.Code -- Моноширинный шрифт для ретро-вайба
+button.Parent = mainFrame
+
+local buttonCorner = Instance.new("UICorner")
+buttonCorner.CornerRadius = UDim.new(0, 2)
+buttonCorner.Parent = button
+
+-- Статус-индикатор (маленькая точка слева от текста)
+local statusDot = Instance.new("Frame")
+statusDot.Name = "StatusDot"
+statusDot.Size = UDim2.new(0, 8, 0, 8)
+statusDot.Position = UDim2.new(0, 10, 0.5, -4)
+statusDot.BackgroundColor3 = Color3.fromRGB(80, 0, 0)
+statusDot.BorderSizePixel = 0
+statusDot.Parent = button
+
+local dotCorner = Instance.new("UICorner")
+dotCorner.CornerRadius = UDim.new(1, 0)
+dotCorner.Parent = statusDot
+
+-- Метка для перетаскивания (верхняя полоска)
+local dragHandle = Instance.new("Frame")
+dragHandle.Name = "DragHandle"
+dragHandle.Size = UDim2.new(1, 0, 0, 4)
+dragHandle.Position = UDim2.new(0, 0, 0, 0)
+dragHandle.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+dragHandle.BorderSizePixel = 0
+dragHandle.Parent = mainFrame
+
+-- Перетаскивание
+local dragging = false
+local dragStart, startPos
+
+dragHandle.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+game:GetService("UserInputService").InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- Логика ауры
+local auraActive = false
+local auraConnection
+
+local function startAura()
+    auraActive = true
+    button.Text = "■ АУРА: ВКЛ"
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    statusDot.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    
+    -- Эффект "включено" — рамка ярче
+    mainFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+    
+    auraConnection = task.spawn(function()
+        while auraActive do
+            local slapEvent = game.ReplicatedStorage:FindFirstChild("GeneralHit", true) 
+                or game.ReplicatedStorage:FindFirstChild("Slap", true)
+                or game.ReplicatedStorage:FindFirstChild("Hit", true)
+
+            if slapEvent then
+                for _, player in pairs(Players:GetPlayers()) do
+                    if not auraActive then break end
+                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+                        if humanoid and humanoid.Health > 0 then
+                            slapEvent:FireServer(player.Character.HumanoidRootPart)
+                            task.wait(0.01)
+                        end
+                    end
+                end
+            end
+            task.wait(0.8)
+        end
+    end)
 end
 
--- Декодируем и выполняем
-loadstring(base64_decode(encoded))()
+local function stopAura()
+    auraActive = false
+    button.Text = "▶ АУРА: ВЫКЛ"
+    button.TextColor3 = Color3.fromRGB(200, 200, 200)
+    statusDot.BackgroundColor3 = Color3.fromRGB(80, 0, 0)
+    mainFrame.BorderColor3 = Color3.fromRGB(180, 0, 0)
+end
+
+-- Анимация нажатия
+button.MouseButton1Down:Connect(function()
+    button.BackgroundColor3 = Color3.fromRGB(60, 0, 0)
+    button.Position = UDim2.new(0, 4, 0, 4)
+end)
+
+button.MouseButton1Up:Connect(function()
+    button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    button.Position = UDim2.new(0, 3, 0, 3)
+end)
+
+button.MouseLeave:Connect(function()
+    button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    button.Position = UDim2.new(0, 3, 0, 3)
+end)
+
+-- Переключение ауры
+button.MouseButton1Click:Connect(function()
+    if auraActive then
+        stopAura()
+    else
+        startAura()
+    end
+end)
+
+-- Hover эффект
+button.MouseEnter:Connect(function()
+    if not auraActive then
+        button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    end
+end)
+
+button.MouseLeave:Connect(function()
+    if not auraActive then
+        button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    end
+end)
