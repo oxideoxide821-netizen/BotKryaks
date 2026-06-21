@@ -1,7 +1,7 @@
 -- Уведомление при запуске
 game:GetService("StarterGui"):SetCore("SendNotification", {
     Title = "Doorkeeper Exploit",
-    Text = "Интерфейс загружен. Нажми кнопку для старта.",
+    Text = "Interface loaded. Click button to start.",
     Duration = 5
 })
 
@@ -9,124 +9,385 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
--- Создаём ScreenGui
+-- ==================== STYLES ====================
+local STYLE = {
+    bg = Color3.fromRGB(10, 10, 10),
+    bgHover = Color3.fromRGB(50, 50, 50),
+    bgPressed = Color3.fromRGB(60, 0, 0),
+    border = Color3.fromRGB(180, 0, 0),
+    borderActive = Color3.fromRGB(255, 0, 0),
+    text = Color3.fromRGB(200, 200, 200),
+    textActive = Color3.fromRGB(255, 255, 255),
+    accent = Color3.fromRGB(220, 0, 0),
+    shadow = Color3.fromRGB(60, 0, 0),
+    dotOff = Color3.fromRGB(80, 0, 0),
+    dotOn = Color3.fromRGB(0, 255, 0),
+    checkOn = Color3.fromRGB(0, 255, 100),
+    checkOff = Color3.fromRGB(80, 0, 0),
+    font = Enum.Font.Code,
+    fontBold = Enum.Font.GothamBold,
+    textSize = 16,
+    textSizeSmall = 14,
+    corner = UDim.new(0, 4),
+    cornerSmall = UDim.new(0, 2),
+}
+
+-- ==================== UTILITIES ====================
+local function createShadow(parent, offset)
+    local shadow = Instance.new("Frame")
+    shadow.Name = "Shadow"
+    shadow.Size = UDim2.new(1, 0, 1, 0)
+    shadow.Position = UDim2.new(0, offset or 2, 0, offset or 2)
+    shadow.BackgroundColor3 = STYLE.shadow
+    shadow.BorderSizePixel = 0
+    shadow.ZIndex = -1
+    shadow.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = STYLE.corner
+    corner.Parent = shadow
+    return shadow
+end
+
+local function createCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = radius or STYLE.corner
+    corner.Parent = parent
+    return corner
+end
+
+local function createBorder(parent, color, size)
+    parent.BorderColor3 = color or STYLE.border
+    parent.BorderSizePixel = size or 3
+end
+
+-- ==================== SCREEN GUI ====================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "DoorkeeperUI"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = game:GetService("CoreGui")
 
--- Основной фрейм кнопки (чёрный фон с красной рамкой)
+-- ==================== MAIN BUTTON (AURA) ====================
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
 mainFrame.Size = UDim2.new(0, 220, 0, 60)
 mainFrame.Position = UDim2.new(0, 20, 0.5, -30)
-mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-mainFrame.BorderColor3 = Color3.fromRGB(180, 0, 0)
+mainFrame.BackgroundColor3 = STYLE.bg
+mainFrame.BorderColor3 = STYLE.border
 mainFrame.BorderSizePixel = 3
 mainFrame.Parent = screenGui
 
--- Угловая рамка для эффекта "вдавленности"
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 4)
-corner.Parent = mainFrame
+createCorner(mainFrame)
+createShadow(mainFrame, 3)
 
--- Внутренняя тень (эффект глубины)
-local shadow = Instance.new("Frame")
-shadow.Name = "Shadow"
-shadow.Size = UDim2.new(1, 0, 1, 0)
-shadow.Position = UDim2.new(0, 2, 0, 2)
-shadow.BackgroundColor3 = Color3.fromRGB(60, 0, 0)
-shadow.BorderSizePixel = 0
-shadow.ZIndex = -1
-shadow.Parent = mainFrame
+-- Drag handle
+local dragHandle = Instance.new("Frame")
+dragHandle.Name = "DragHandle"
+dragHandle.Size = UDim2.new(1, 0, 0, 4)
+dragHandle.Position = UDim2.new(0, 0, 0, 0)
+dragHandle.BackgroundColor3 = STYLE.border
+dragHandle.BorderSizePixel = 0
+dragHandle.Parent = mainFrame
 
-local shadowCorner = Instance.new("UICorner")
-shadowCorner.CornerRadius = UDim.new(0, 4)
-shadowCorner.Parent = shadow
+-- Aura button
+local auraButton = Instance.new("TextButton")
+auraButton.Name = "AuraButton"
+auraButton.Size = UDim2.new(1, -6, 1, -6)
+auraButton.Position = UDim2.new(0, 3, 0, 3)
+auraButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+auraButton.BorderColor3 = STYLE.accent
+auraButton.BorderSizePixel = 2
+auraButton.Text = "> AURA: OFF"
+auraButton.TextColor3 = STYLE.text
+auraButton.TextSize = STYLE.textSize
+auraButton.Font = STYLE.font
+auraButton.Parent = mainFrame
 
--- Кнопка
-local button = Instance.new("TextButton")
-button.Name = "ToggleButton"
-button.Size = UDim2.new(1, -6, 1, -6)
-button.Position = UDim2.new(0, 3, 0, 3)
-button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-button.BorderColor3 = Color3.fromRGB(220, 0, 0)
-button.BorderSizePixel = 2
-button.Text = "▶ АУРА: ВЫКЛ"
-button.TextColor3 = Color3.fromRGB(200, 200, 200)
-button.TextSize = 16
-button.Font = Enum.Font.Code -- Моноширинный шрифт для ретро-вайба
-button.Parent = mainFrame
+createCorner(auraButton, STYLE.cornerSmall)
 
-local buttonCorner = Instance.new("UICorner")
-buttonCorner.CornerRadius = UDim.new(0, 2)
-buttonCorner.Parent = button
-
--- Статус-индикатор (маленькая точка слева от текста)
+-- Status dot
 local statusDot = Instance.new("Frame")
 statusDot.Name = "StatusDot"
 statusDot.Size = UDim2.new(0, 8, 0, 8)
 statusDot.Position = UDim2.new(0, 10, 0.5, -4)
-statusDot.BackgroundColor3 = Color3.fromRGB(80, 0, 0)
+statusDot.BackgroundColor3 = STYLE.dotOff
 statusDot.BorderSizePixel = 0
-statusDot.Parent = button
+statusDot.Parent = auraButton
 
 local dotCorner = Instance.new("UICorner")
 dotCorner.CornerRadius = UDim.new(1, 0)
 dotCorner.Parent = statusDot
 
--- Метка для перетаскивания (верхняя полоска)
-local dragHandle = Instance.new("Frame")
-dragHandle.Name = "DragHandle"
-dragHandle.Size = UDim2.new(1, 0, 0, 4)
-dragHandle.Position = UDim2.new(0, 0, 0, 0)
-dragHandle.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
-dragHandle.BorderSizePixel = 0
-dragHandle.Parent = mainFrame
+-- ==================== LIST TOGGLE BUTTON (next to main) ====================
+local listToggleFrame = Instance.new("Frame")
+listToggleFrame.Name = "ListToggleFrame"
+listToggleFrame.Size = UDim2.new(0, 40, 0, 60)
+listToggleFrame.Position = UDim2.new(0, 245, 0.5, -30)
+listToggleFrame.BackgroundColor3 = STYLE.bg
+listToggleFrame.BorderColor3 = STYLE.border
+listToggleFrame.BorderSizePixel = 3
+listToggleFrame.Parent = screenGui
 
--- Перетаскивание
+createCorner(listToggleFrame)
+createShadow(listToggleFrame, 3)
+
+local listToggleBtn = Instance.new("TextButton")
+listToggleBtn.Name = "ListToggleBtn"
+listToggleBtn.Size = UDim2.new(1, -6, 1, -6)
+listToggleBtn.Position = UDim2.new(0, 3, 0, 3)
+listToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+listToggleBtn.BorderColor3 = STYLE.accent
+listToggleBtn.BorderSizePixel = 2
+listToggleBtn.Text = "="
+listToggleBtn.TextColor3 = STYLE.text
+listToggleBtn.TextSize = 20
+listToggleBtn.Font = STYLE.fontBold
+listToggleBtn.Parent = listToggleFrame
+
+createCorner(listToggleBtn, STYLE.cornerSmall)
+
+-- ==================== PLAYER LIST PANEL ====================
+local listPanel = Instance.new("Frame")
+listPanel.Name = "ListPanel"
+listPanel.Size = UDim2.new(0, 250, 0, 0)
+listPanel.Position = UDim2.new(0, 20, 0.5, 35)
+listPanel.BackgroundColor3 = STYLE.bg
+listPanel.BorderColor3 = STYLE.border
+listPanel.BorderSizePixel = 3
+listPanel.ClipsDescendants = true
+listPanel.Parent = screenGui
+listPanel.Visible = false
+
+createCorner(listPanel)
+createShadow(listPanel, 3)
+
+-- Panel title
+local listTitle = Instance.new("TextLabel")
+listTitle.Name = "ListTitle"
+listTitle.Size = UDim2.new(1, -10, 0, 30)
+listTitle.Position = UDim2.new(0, 5, 0, 5)
+listTitle.BackgroundTransparency = 1
+listTitle.Text = "BLACKLIST"
+listTitle.TextColor3 = STYLE.accent
+listTitle.TextSize = 16
+listTitle.Font = STYLE.fontBold
+listTitle.Parent = listPanel
+
+-- Divider
+local divider = Instance.new("Frame")
+divider.Name = "Divider"
+divider.Size = UDim2.new(1, -10, 0, 2)
+divider.Position = UDim2.new(0, 5, 0, 35)
+divider.BackgroundColor3 = STYLE.border
+divider.BorderSizePixel = 0
+divider.Parent = listPanel
+
+-- ScrollFrame for list
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Name = "ScrollFrame"
+scrollFrame.Size = UDim2.new(1, -10, 1, -75)
+scrollFrame.Position = UDim2.new(0, 5, 0, 42)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.BorderSizePixel = 0
+scrollFrame.ScrollBarThickness = 4
+scrollFrame.ScrollBarImageColor3 = STYLE.border
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollFrame.Parent = listPanel
+
+-- "Select All" button
+local selectAllBtn = Instance.new("TextButton")
+selectAllBtn.Name = "SelectAllBtn"
+selectAllBtn.Size = UDim2.new(0.5, -7, 0, 25)
+selectAllBtn.Position = UDim2.new(0, 5, 1, -30)
+selectAllBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+selectAllBtn.BorderColor3 = STYLE.accent
+selectAllBtn.BorderSizePixel = 2
+selectAllBtn.Text = "[ ALL ]"
+selectAllBtn.TextColor3 = STYLE.text
+selectAllBtn.TextSize = 12
+selectAllBtn.Font = STYLE.font
+selectAllBtn.Parent = listPanel
+
+createCorner(selectAllBtn, STYLE.cornerSmall)
+
+-- "Deselect All" button
+local deselectAllBtn = Instance.new("TextButton")
+deselectAllBtn.Name = "DeselectAllBtn"
+deselectAllBtn.Size = UDim2.new(0.5, -7, 0, 25)
+deselectAllBtn.Position = UDim2.new(0.5, 2, 1, -30)
+deselectAllBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+deselectAllBtn.BorderColor3 = STYLE.accent
+deselectAllBtn.BorderSizePixel = 2
+deselectAllBtn.Text = "[ NONE ]"
+deselectAllBtn.TextColor3 = STYLE.text
+deselectAllBtn.TextSize = 12
+deselectAllBtn.Font = STYLE.font
+deselectAllBtn.Parent = listPanel
+
+createCorner(deselectAllBtn, STYLE.cornerSmall)
+
+-- ==================== DRAGGING ====================
 local dragging = false
 local dragStart, startPos
 
-dragHandle.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
-    end
-end)
+local function makeDraggable(frame, handle)
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+end
 
-game:GetService("UserInputService").InputChanged:Connect(function(input)
+makeDraggable(mainFrame, dragHandle)
+makeDraggable(listToggleFrame, listToggleBtn)
+
+UserInputService.InputChanged:Connect(function(input)
     if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
         mainFrame.Position = UDim2.new(
             startPos.X.Scale, startPos.X.Offset + delta.X,
             startPos.Y.Scale, startPos.Y.Offset + delta.Y
         )
+        listToggleFrame.Position = UDim2.new(
+            0, mainFrame.Position.X.Offset + 225,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+        listPanel.Position = UDim2.new(
+            0, mainFrame.Position.X.Offset,
+            0.5, (startPos.Y.Offset + delta.Y) + 35
+        )
     end
 end)
 
-game:GetService("UserInputService").InputEnded:Connect(function(input)
+UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = false
     end
 end)
 
--- Логика ауры
+-- ==================== BLACKLIST LOGIC ====================
+local blacklist = {} -- [UserId] = true (if true - do not slap)
+
+local function updateBlacklistUI()
+    -- Clear existing entries
+    for _, entry in pairs(scrollFrame:GetChildren()) do
+        if entry:IsA("Frame") then
+            entry:Destroy()
+        end
+    end
+
+    local yOffset = 0
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local entry = Instance.new("Frame")
+            entry.Name = "Entry_" .. player.Name
+            entry.Size = UDim2.new(1, -4, 0, 28)
+            entry.Position = UDim2.new(0, 2, 0, yOffset)
+            entry.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+            entry.BorderColor3 = Color3.fromRGB(100, 0, 0)
+            entry.BorderSizePixel = 1
+            entry.Parent = scrollFrame
+
+            createCorner(entry, STYLE.cornerSmall)
+
+            -- Checkbox
+            local checkbox = Instance.new("TextButton")
+            checkbox.Name = "Checkbox"
+            checkbox.Size = UDim2.new(0, 18, 0, 18)
+            checkbox.Position = UDim2.new(0, 5, 0.5, -9)
+            checkbox.BackgroundColor3 = blacklist[player.UserId] and STYLE.checkOn or STYLE.checkOff
+            checkbox.BorderColor3 = STYLE.accent
+            checkbox.BorderSizePixel = 2
+            checkbox.Text = blacklist[player.UserId] and "X" or ""
+            checkbox.TextColor3 = Color3.fromRGB(255, 255, 255)
+            checkbox.TextSize = 14
+            checkbox.Font = STYLE.fontBold
+            checkbox.Parent = entry
+
+            createCorner(checkbox, UDim.new(0, 1))
+
+            -- Player name
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Name = "NameLabel"
+            nameLabel.Size = UDim2.new(1, -30, 1, 0)
+            nameLabel.Position = UDim2.new(0, 28, 0, 0)
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.Text = " " .. player.Name
+            nameLabel.TextColor3 = blacklist[player.UserId] and Color3.fromRGB(150, 150, 150) or STYLE.text
+            nameLabel.TextSize = 13
+            nameLabel.Font = STYLE.font
+            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+            nameLabel.Parent = entry
+
+            -- Hover effect
+            entry.MouseEnter:Connect(function()
+                if not blacklist[player.UserId] then
+                    entry.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                end
+            end)
+
+            entry.MouseLeave:Connect(function()
+                if not blacklist[player.UserId] then
+                    entry.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+                end
+            end)
+
+            -- Click on checkbox - FIXED: use direct player reference
+            checkbox.MouseButton1Click:Connect(function()
+                local isBlacklisted = not blacklist[player.UserId]
+                blacklist[player.UserId] = isBlacklisted
+
+                checkbox.BackgroundColor3 = isBlacklisted and STYLE.checkOn or STYLE.checkOff
+                checkbox.Text = isBlacklisted and "X" or ""
+                nameLabel.TextColor3 = isBlacklisted and Color3.fromRGB(150, 150, 150) or STYLE.text
+                entry.BackgroundColor3 = isBlacklisted and Color3.fromRGB(20, 40, 20) or Color3.fromRGB(25, 25, 25)
+            end)
+
+            yOffset = yOffset + 32
+        end
+    end
+
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(yOffset, 1))
+end
+
+-- Update on player join/leave
+Players.PlayerAdded:Connect(updateBlacklistUI)
+Players.PlayerRemoving:Connect(function(player)
+    blacklist[player.UserId] = nil
+    updateBlacklistUI()
+end)
+
+-- "All" / "None" buttons
+selectAllBtn.MouseButton1Click:Connect(function()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            blacklist[player.UserId] = true
+        end
+    end
+    updateBlacklistUI()
+end)
+
+deselectAllBtn.MouseButton1Click:Connect(function()
+    blacklist = {}
+    updateBlacklistUI()
+end)
+
+-- ==================== AURA LOGIC ====================
 local auraActive = false
 local auraConnection
 
 local function startAura()
     auraActive = true
-    button.Text = "■ АУРА: ВКЛ"
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    statusDot.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    
-    -- Эффект "включено" — рамка ярче
-    mainFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
-    
+    auraButton.Text = "[] AURA: ON"
+    auraButton.TextColor3 = STYLE.textActive
+    statusDot.BackgroundColor3 = STYLE.dotOn
+    mainFrame.BorderColor3 = STYLE.borderActive
+
     auraConnection = task.spawn(function()
         while auraActive do
             local slapEvent = game.ReplicatedStorage:FindFirstChild("GeneralHit", true) 
@@ -136,7 +397,8 @@ local function startAura()
             if slapEvent then
                 for _, player in pairs(Players:GetPlayers()) do
                     if not auraActive then break end
-                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    if player ~= LocalPlayer and not blacklist[player.UserId] 
+                        and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                         local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
                         if humanoid and humanoid.Health > 0 then
                             slapEvent:FireServer(player.Character.HumanoidRootPart)
@@ -152,46 +414,66 @@ end
 
 local function stopAura()
     auraActive = false
-    button.Text = "▶ АУРА: ВЫКЛ"
-    button.TextColor3 = Color3.fromRGB(200, 200, 200)
-    statusDot.BackgroundColor3 = Color3.fromRGB(80, 0, 0)
-    mainFrame.BorderColor3 = Color3.fromRGB(180, 0, 0)
+    auraButton.Text = "> AURA: OFF"
+    auraButton.TextColor3 = STYLE.text
+    statusDot.BackgroundColor3 = STYLE.dotOff
+    mainFrame.BorderColor3 = STYLE.border
 end
 
--- Анимация нажатия
-button.MouseButton1Down:Connect(function()
-    button.BackgroundColor3 = Color3.fromRGB(60, 0, 0)
-    button.Position = UDim2.new(0, 4, 0, 4)
+-- ==================== BUTTON ANIMATIONS ====================
+local function buttonAnim(btn, downColor, downPos, upColor, upPos)
+    btn.MouseButton1Down:Connect(function()
+        btn.BackgroundColor3 = downColor
+        btn.Position = downPos
+    end)
+    btn.MouseButton1Up:Connect(function()
+        btn.BackgroundColor3 = upColor
+        btn.Position = upPos
+    end)
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundColor3 = upColor
+        btn.Position = upPos
+    end)
+end
+
+buttonAnim(auraButton, STYLE.bgPressed, UDim2.new(0, 4, 0, 4), Color3.fromRGB(30, 30, 30), UDim2.new(0, 3, 0, 3))
+buttonAnim(listToggleBtn, STYLE.bgPressed, UDim2.new(0, 4, 0, 4), Color3.fromRGB(30, 30, 30), UDim2.new(0, 3, 0, 3))
+
+-- Hover effects
+auraButton.MouseEnter:Connect(function()
+    if not auraActive then auraButton.BackgroundColor3 = STYLE.bgHover end
+end)
+auraButton.MouseLeave:Connect(function()
+    if not auraActive then auraButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30) end
 end)
 
-button.MouseButton1Up:Connect(function()
-    button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    button.Position = UDim2.new(0, 3, 0, 3)
+listToggleBtn.MouseEnter:Connect(function()
+    listToggleBtn.BackgroundColor3 = STYLE.bgHover
+end)
+listToggleBtn.MouseLeave:Connect(function()
+    listToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 end)
 
-button.MouseLeave:Connect(function()
-    button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    button.Position = UDim2.new(0, 3, 0, 3)
+-- ==================== TOGGLES ====================
+auraButton.MouseButton1Click:Connect(function()
+    if auraActive then stopAura() else startAura() end
 end)
 
--- Переключение ауры
-button.MouseButton1Click:Connect(function()
-    if auraActive then
-        stopAura()
+local listOpen = false
+listToggleBtn.MouseButton1Click:Connect(function()
+    listOpen = not listOpen
+    listPanel.Visible = true
+    if listOpen then
+        listPanel:TweenSize(UDim2.new(0, 250, 0, 200), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
+        listToggleBtn.TextColor3 = STYLE.borderActive
+        updateBlacklistUI()
     else
-        startAura()
+        listPanel:TweenSize(UDim2.new(0, 250, 0, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true, function()
+            listPanel.Visible = false
+        end)
+        listToggleBtn.TextColor3 = STYLE.text
     end
 end)
 
--- Hover эффект
-button.MouseEnter:Connect(function()
-    if not auraActive then
-        button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    end
-end)
-
-button.MouseLeave:Connect(function()
-    if not auraActive then
-        button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    end
-end)
+-- Initialization
+updateBlacklistUI()
