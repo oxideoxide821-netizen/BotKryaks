@@ -1,7 +1,12 @@
+-- ============================================
+-- DOORKEEPER COMBO | Slap Battles
+-- Aura + Place Door в одной кнопке
+-- ============================================
+
 -- Уведомление при запуске
 game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "Doorkeeper Exploit",
-    Text = "Interface loaded. Click button to start.",
+    Title = "Doorkeeper Combo",
+    Text = "Interface loaded. Click button to toggle aura + place door.",
     Duration = 5
 })
 
@@ -10,6 +15,7 @@ local LocalPlayer = Players.LocalPlayer
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- ==================== STYLES ====================
 local STYLE = {
@@ -65,12 +71,12 @@ end
 
 -- ==================== SCREEN GUI ====================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "DoorkeeperUI"
+screenGui.Name = "DoorkeeperComboUI"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = game:GetService("CoreGui")
 
--- ==================== MAIN BUTTON (AURA) ====================
+-- ==================== MAIN BUTTON (COMBO) ====================
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
 mainFrame.Size = UDim2.new(0, 220, 0, 60)
@@ -92,21 +98,21 @@ dragHandle.BackgroundColor3 = STYLE.border
 dragHandle.BorderSizePixel = 0
 dragHandle.Parent = mainFrame
 
--- Aura button
-local auraButton = Instance.new("TextButton")
-auraButton.Name = "AuraButton"
-auraButton.Size = UDim2.new(1, -6, 1, -6)
-auraButton.Position = UDim2.new(0, 3, 0, 3)
-auraButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-auraButton.BorderColor3 = STYLE.accent
-auraButton.BorderSizePixel = 2
-auraButton.Text = "> AURA: OFF"
-auraButton.TextColor3 = STYLE.text
-auraButton.TextSize = STYLE.textSize
-auraButton.Font = STYLE.font
-auraButton.Parent = mainFrame
+-- Combo button (PLACE DOOR)
+local comboButton = Instance.new("TextButton")
+comboButton.Name = "ComboButton"
+comboButton.Size = UDim2.new(1, -6, 1, -6)
+comboButton.Position = UDim2.new(0, 3, 0, 3)
+comboButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+comboButton.BorderColor3 = STYLE.accent
+comboButton.BorderSizePixel = 2
+comboButton.Text = "> PLACE DOOR"
+comboButton.TextColor3 = STYLE.text
+comboButton.TextSize = STYLE.textSize
+comboButton.Font = STYLE.font
+comboButton.Parent = mainFrame
 
-createCorner(auraButton, STYLE.cornerSmall)
+createCorner(comboButton, STYLE.cornerSmall)
 
 -- Status dot
 local statusDot = Instance.new("Frame")
@@ -115,7 +121,7 @@ statusDot.Size = UDim2.new(0, 8, 0, 8)
 statusDot.Position = UDim2.new(0, 10, 0.5, -4)
 statusDot.BackgroundColor3 = STYLE.dotOff
 statusDot.BorderSizePixel = 0
-statusDot.Parent = auraButton
+statusDot.Parent = comboButton
 
 local dotCorner = Instance.new("UICorner")
 dotCorner.CornerRadius = UDim.new(1, 0)
@@ -337,7 +343,7 @@ local function updateBlacklistUI()
                 end
             end)
 
-            -- Click on checkbox - FIXED: use direct player reference
+            -- Click on checkbox
             checkbox.MouseButton1Click:Connect(function()
                 local isBlacklisted = not blacklist[player.UserId]
                 blacklist[player.UserId] = isBlacklisted
@@ -377,14 +383,181 @@ deselectAllBtn.MouseButton1Click:Connect(function()
     updateBlacklistUI()
 end)
 
+-- ==================== DOOR REMOTE ====================
+local doorRemote = nil
+
+local function findDoorRemote()
+    local possiblePaths = {
+        "Assets.Obtainments.Doorkeeper.Remotes.GeneralAbility",
+        "Assets.Obtainments.Doorkeeper.Remotes.Ability",
+        "Assets.Obtainments.Doorkeeper.Remotes.Activate",
+        "Assets.Obtainments.Doorkeeper.Remotes.PlaceDoor",
+        "Assets.Obtainments.Doorkeeper.Remotes.Use",
+        "GeneralAbility",
+        "DoorkeeperAbility",
+        "DoorAbility",
+    }
+
+    for _, path in ipairs(possiblePaths) do
+        local parts = path:split(".")
+        local current = ReplicatedStorage
+
+        for _, part in ipairs(parts) do
+            current = current:FindFirstChild(part)
+            if not current then break end
+        end
+
+        if current and (current:IsA("RemoteEvent") or current:IsA("RemoteFunction")) then
+            doorRemote = current
+            return current
+        end
+    end
+
+    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") and obj.Name:lower():find("door") then
+            doorRemote = obj
+            return obj
+        end
+    end
+
+    return nil
+end
+
+findDoorRemote()
+
+-- ==================== EDGE POSITION (В КОНЕЦ КАРТЫ) ====================
+local function getMapEndPosition()
+    local character = LocalPlayer.Character
+    if not character then return nil end
+
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+
+    local arena = workspace:FindFirstChild("Arena")
+    if not arena then
+        return hrp.CFrame * CFrame.new(0, 0, -50)
+    end
+
+    local mainIsland = arena:FindFirstChild("main island") 
+        or arena:FindFirstChild("default island")
+        or arena:FindFirstChild("island")
+
+    if not mainIsland then
+        return hrp.CFrame * CFrame.new(0, 0, -50)
+    end
+
+    local allParts = {}
+    for _, part in ipairs(mainIsland:GetDescendants()) do
+        if part:IsA("BasePart") then
+            table.insert(allParts, part)
+        end
+    end
+
+    if #allParts == 0 then
+        return hrp.CFrame * CFrame.new(0, 0, -50)
+    end
+
+    local center = Vector3.new(0, 0, 0)
+    for _, part in ipairs(allParts) do
+        center = center + part.Position
+    end
+    center = center / #allParts
+
+    local endPart = nil
+    local maxDist = 0
+
+    for _, part in ipairs(allParts) do
+        local dist = (part.Position - center).Magnitude
+        if dist > maxDist then
+            maxDist = dist
+            endPart = part
+        end
+    end
+
+    if not endPart then
+        return hrp.CFrame * CFrame.new(0, 0, -50)
+    end
+
+    local endPos = endPart.Position
+    local direction = (endPos - center).Unit
+    local placePos = endPos + direction * 15
+    placePos = Vector3.new(placePos.X, hrp.Position.Y, placePos.Z)
+    local lookAt = placePos + direction * 50
+
+    return CFrame.new(placePos, lookAt)
+end
+
+-- ==================== PLACE DOOR ====================
+local function placeDoor()
+    if not doorRemote then
+        findDoorRemote()
+        if not doorRemote then
+            comboButton.Text = "> NO REMOTE"
+            task.wait(1)
+            comboButton.Text = "> PLACE DOOR"
+            return false
+        end
+    end
+
+    local character = LocalPlayer.Character
+    if not character then return false end
+
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+
+    -- Экипируем Doorkeeper если нужно
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    local tool = character:FindFirstChildOfClass("Tool")
+
+    if not tool or tool.Name ~= "Doorkeeper" then
+        if backpack then
+            for _, item in ipairs(backpack:GetChildren()) do
+                if item:IsA("Tool") and item.Name == "Doorkeeper" then
+                    item.Parent = character
+                    task.wait(0.15)
+                    break
+                end
+            end
+        end
+    end
+
+    local placeCFrame = getMapEndPosition()
+    if not placeCFrame then
+        placeCFrame = hrp.CFrame * CFrame.new(0, 0, -50)
+    end
+
+    local success = false
+
+    pcall(function()
+        doorRemote:FireServer(placeCFrame)
+        success = true
+    end)
+
+    if not success then
+        pcall(function()
+            doorRemote:FireServer(placeCFrame.Position)
+            success = true
+        end)
+    end
+
+    if not success then
+        pcall(function()
+            doorRemote:FireServer()
+            success = true
+        end)
+    end
+
+    return success
+end
+
 -- ==================== AURA LOGIC ====================
 local auraActive = false
 local auraConnection
 
 local function startAura()
     auraActive = true
-    auraButton.Text = "[] AURA: ON"
-    auraButton.TextColor3 = STYLE.textActive
+    comboButton.Text = "[] PLACE DOOR"
+    comboButton.TextColor3 = STYLE.textActive
     statusDot.BackgroundColor3 = STYLE.dotOn
     mainFrame.BorderColor3 = STYLE.borderActive
 
@@ -414,10 +587,20 @@ end
 
 local function stopAura()
     auraActive = false
-    auraButton.Text = "> AURA: OFF"
-    auraButton.TextColor3 = STYLE.text
+    comboButton.Text = "> PLACE DOOR"
+    comboButton.TextColor3 = STYLE.text
     statusDot.BackgroundColor3 = STYLE.dotOff
     mainFrame.BorderColor3 = STYLE.border
+end
+
+-- ==================== COMBO TOGGLE ====================
+local function toggleCombo()
+    if auraActive then
+        stopAura()
+    else
+        startAura()
+        placeDoor()
+    end
 end
 
 -- ==================== BUTTON ANIMATIONS ====================
@@ -436,15 +619,15 @@ local function buttonAnim(btn, downColor, downPos, upColor, upPos)
     end)
 end
 
-buttonAnim(auraButton, STYLE.bgPressed, UDim2.new(0, 4, 0, 4), Color3.fromRGB(30, 30, 30), UDim2.new(0, 3, 0, 3))
+buttonAnim(comboButton, STYLE.bgPressed, UDim2.new(0, 4, 0, 4), Color3.fromRGB(30, 30, 30), UDim2.new(0, 3, 0, 3))
 buttonAnim(listToggleBtn, STYLE.bgPressed, UDim2.new(0, 4, 0, 4), Color3.fromRGB(30, 30, 30), UDim2.new(0, 3, 0, 3))
 
 -- Hover effects
-auraButton.MouseEnter:Connect(function()
-    if not auraActive then auraButton.BackgroundColor3 = STYLE.bgHover end
+comboButton.MouseEnter:Connect(function()
+    if not auraActive then comboButton.BackgroundColor3 = STYLE.bgHover end
 end)
-auraButton.MouseLeave:Connect(function()
-    if not auraActive then auraButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30) end
+comboButton.MouseLeave:Connect(function()
+    if not auraActive then comboButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30) end
 end)
 
 listToggleBtn.MouseEnter:Connect(function()
@@ -454,10 +637,8 @@ listToggleBtn.MouseLeave:Connect(function()
     listToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 end)
 
--- ==================== TOGGLES ====================
-auraButton.MouseButton1Click:Connect(function()
-    if auraActive then stopAura() else startAura() end
-end)
+-- ==================== CLICK HANDLERS ====================
+comboButton.MouseButton1Click:Connect(toggleCombo)
 
 local listOpen = false
 listToggleBtn.MouseButton1Click:Connect(function()
@@ -472,6 +653,16 @@ listToggleBtn.MouseButton1Click:Connect(function()
             listPanel.Visible = false
         end)
         listToggleBtn.TextColor3 = STYLE.text
+    end
+end)
+
+-- ==================== AUTO-UPDATE REMOTE ====================
+task.spawn(function()
+    while true do
+        if not doorRemote then
+            findDoorRemote()
+        end
+        task.wait(5)
     end
 end)
 
